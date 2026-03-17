@@ -29,10 +29,19 @@ print(data[section][key])
 ' "$CONFIG_FILE" "$section" "$key"
 }
 
+build_reload_args() {
+  local enabled
+  enabled="$(read_config_value fastapi reload)"
+  if [[ "$enabled" == "True" ]]; then
+    printf '%s\n' "--reload"
+  fi
+}
+
 SERVER_A_HOST="$(read_config_value server_a host)"
 SERVER_A_PORT="$(read_config_value server_a port)"
 SERVER_B_HOST="$(read_config_value server_b host)"
 SERVER_B_PORT="$(read_config_value server_b port)"
+mapfile -t RELOAD_ARGS < <(build_reload_args)
 
 mkdir -p "$RUN_DIR"
 
@@ -79,10 +88,10 @@ if [[ -f "$PID_FILE" ]]; then
   rm -f "$PID_FILE"
 fi
 
-setsid env PYTHONPATH="$PYTHONPATH" uv run python -m uvicorn rpc_pubsub_sample.server_a:app --host "$SERVER_A_HOST" --port "$SERVER_A_PORT" &
+setsid env PYTHONPATH="$PYTHONPATH" uv run python -m uvicorn rpc_pubsub_sample.server_a:app --host "$SERVER_A_HOST" --port "$SERVER_A_PORT" "${RELOAD_ARGS[@]}" &
 PIDS+=("$!")
 
-setsid env PYTHONPATH="$PYTHONPATH" uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host "$SERVER_B_HOST" --port "$SERVER_B_PORT" &
+setsid env PYTHONPATH="$PYTHONPATH" uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host "$SERVER_B_HOST" --port "$SERVER_B_PORT" "${RELOAD_ARGS[@]}" &
 PIDS+=("$!")
 
 printf '%s\n' "${PIDS[@]}" > "$PID_FILE"
@@ -91,6 +100,7 @@ echo "server-a: http://$SERVER_A_HOST:$SERVER_A_PORT"
 echo "server-b: http://$SERVER_B_HOST:$SERVER_B_PORT"
 echo "server-a log: $LOG_DIR/server-a.log"
 echo "server-b log: $LOG_DIR/server-b.log"
+echo "fastapi reload: ${RELOAD_ARGS[*]:-disabled}"
 echo "停止するには Ctrl+C を押してください。"
 
 wait -n "${PIDS[@]}"

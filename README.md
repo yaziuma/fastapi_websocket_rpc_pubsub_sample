@@ -110,21 +110,23 @@ PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 12
 `GET /health` を実行し、`rpc_registration_enabled` / `pubsub_registration_enabled` と
 `rpc_connected` / `pubsub_connected` が `true` になっていることを確認します。
 
-### 3. RPC 呼び出し
+### 3. 相手サーバの RPC 呼び出し
 
-`POST /rpc/call-peer` を開き、たとえば次を送ります。
+相手サーバ側では次の method を公開しています。
 
-```bash
-{"message":"hello from server-a"}
-```
+- `get_node_info`: ノード名、接続状態、保存件数を取得
+- `submit_job`: 相手サーバへジョブを登録
+- `list_jobs`: 相手サーバに登録されたジョブ一覧を取得
 
-### 4. 双方向 RPC 呼び出し
+### 4. 相手コールバックの RPC 呼び出し
 
-`POST /rpc/call-peer-client` を実行すると、peer 側が client として公開している method を呼べます。
+相手 callback 側では次の method を公開しています。
 
-```bash
-{"message":"callback please"}
-```
+- `push_alert`: 相手 callback 側へアラートを追加
+- `list_alerts`: 相手 callback 側に届いたアラート一覧を取得
+- `client_status`: 相手 callback 側の詳細状態を取得
+
+公開中の sample method 一覧は `GET /rpc/methods` で確認できます。`/ui` ではこの一覧をもとに、公開種別と method を選んで対応する個別エンドポイントを呼びます。
 
 ### 5. PubSub 配信
 
@@ -157,8 +159,8 @@ PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 12
 - 相互登録
 - 単方向解除
 - 相互解除
-- RPC server method 呼び出し
-- RPC client method 呼び出し
+- RPC 公開種別と method の選択
+- 選択した method に対応する個別エンドポイントの実行
 - PubSub publish
 - ローカル状態確認
 - リモート状態確認
@@ -177,8 +179,12 @@ PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 12
 - `POST /registration/disconnect-mutual`: 相手ノードと相互解除する
 - `GET /ui`: 1画面で操作できる簡易 UI
 - `POST /ui/remote-snapshot`: UI 用に相手ノードの状態を取得する
-- `POST /rpc/call-peer`: peer サーバの RPC メソッドを呼ぶ
-- `POST /rpc/call-peer-client`: peer 側 FastAPI が公開している RPC client method を呼ぶ
-- `POST /rpc/client-status`: peer 側 FastAPI の RPC client 状態を取得する
+- `GET /rpc/methods`: このサンプルで公開している RPC method 一覧を返す
+- `POST /rpc/server/get-node-info`: peer 側の `get_node_info` を呼ぶ
+- `POST /rpc/server/submit-job`: peer 側の `submit_job` を呼ぶ
+- `POST /rpc/server/list-jobs`: peer 側の `list_jobs` を呼ぶ
+- `POST /rpc/client/push-alert`: peer 側の `push_alert` を呼ぶ
+- `POST /rpc/client/list-alerts`: peer 側の `list_alerts` を呼ぶ
+- `POST /rpc/client/status`: peer 側の `client_status` を呼ぶ
 - `POST /pubsub/publish`: 自サーバの PubSub endpoint から publish する
 - `GET /pubsub/events`: 受信した PubSub イベント一覧

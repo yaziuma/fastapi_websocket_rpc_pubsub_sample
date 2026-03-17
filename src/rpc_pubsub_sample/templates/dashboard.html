@@ -107,7 +107,7 @@
   <div class="page">
     <section class="panel">
       <h1>{{ node_name }} Dashboard</h1>
-      <p>登録、相互登録、相互解除、RPC 呼び出し、PubSub 配信、ローカル/リモート状態確認を 1 画面で行います。</p>
+      <p>登録、相互登録、相互解除、相手サーバのジョブ操作、相手 callback 側のアラート操作、PubSub 配信、ローカル/リモート状態確認を 1 画面で行います。</p>
       <p class="tiny">Local: {{ local_base_url }} / <a href="/docs">/docs</a></p>
     </section>
 
@@ -142,12 +142,27 @@
     <div class="grid">
       <section class="panel">
         <h2>操作</h2>
-        <label for="rpcMessage">RPC Message</label>
-        <input id="rpcMessage" value="hello from UI">
+        <div class="triple">
+          <div>
+            <label for="rpcTargetType">RPC 公開種別</label>
+            <select id="rpcTargetType">
+              <option value="server" selected>server methods</option>
+              <option value="client">client methods</option>
+            </select>
+          </div>
+          <div>
+            <label for="rpcMethod">RPC Method</label>
+            <select id="rpcMethod"></select>
+          </div>
+          <div>
+            <label for="rpcMessage">RPC 送信メッセージ</label>
+            <input id="rpcMessage" value="hello from UI">
+          </div>
+        </div>
+        <p class="tiny" id="rpcMethodSummary">ここに選択中 method の説明を表示します。</p>
         <div class="actions">
-          <button id="rpcCallBtn">RPC Server Call</button>
-          <button id="rpcClientBtn" class="alt">RPC Client Call</button>
-          <button id="rpcStatusBtn" class="ghost">RPC Client Status</button>
+          <button id="rpcInvokeBtn">選択した RPC method を実行</button>
+          <button id="rpcMethodsBtn" class="ghost">公開 method 一覧を表示</button>
         </div>
         <label for="topic" style="margin-top:12px;">PubSub Topic</label>
         <input id="topic" value="events">
@@ -162,6 +177,9 @@
 
       <section class="panel">
         <h2>API Response</h2>
+        <div class="actions">
+          <button id="copyResultBtn" class="ghost">レスポンスをコピー</button>
+        </div>
         <pre id="resultBox">ここに API 応答を表示します。</pre>
       </section>
     </div>
@@ -188,6 +206,7 @@
   <script>
     const $ = (id) => document.getElementById(id);
     const pretty = (value) => JSON.stringify(value, null, 2);
+    const rpcCatalog = {{ rpc_catalog | tojson }};
 
     function settings() {
       const remoteBaseUrl = $("remoteBaseUrl").value.trim().replace(/\/$/, "");
@@ -201,6 +220,37 @@
         topic: $("topic").value,
         pubsub_message: $("pubsubMessage").value
       };
+    }
+
+    function updateRpcMethodOptions() {
+      const targetType = $("rpcTargetType").value;
+      const methods = rpcCatalog[targetType] || [];
+      const methodSelect = $("rpcMethod");
+      methodSelect.innerHTML = "";
+      for (const method of methods) {
+        const option = document.createElement("option");
+        option.value = method.name;
+        option.textContent = method.name;
+        methodSelect.appendChild(option);
+      }
+      updateRpcMethodSummary();
+    }
+
+    function updateRpcMethodSummary() {
+      const targetType = $("rpcTargetType").value;
+      const methodName = $("rpcMethod").value;
+      const methods = rpcCatalog[targetType] || [];
+      const selected = methods.find((item) => item.name === methodName);
+      const messageInput = $("rpcMessage");
+      const summary = $("rpcMethodSummary");
+      if (!selected) {
+        messageInput.disabled = false;
+        summary.textContent = "選択中 method の情報がありません。";
+        return;
+      }
+      messageInput.disabled = !selected.ui_message_field;
+      const params = selected.params.length ? selected.params.join(", ") : "なし";
+      summary.textContent = `${targetType} / ${selected.name}: ${selected.summary} 引数: ${params}`;
     }
 
     async function callJson(path, payload, targetBox = "resultBox") {
@@ -262,18 +312,58 @@
       await refreshRemote();
     };
 
-    $("rpcCallBtn").onclick = async () => {
+    $("rpcInvokeBtn").onclick = async () => {
       const s = settings();
-      await callJson("/rpc/call-peer", { message: s.rpc_message });
+      const targetType = $("rpcTargetType").value;
+      const method = $("rpcMethod").value;
+      if (targetType === "server" && method === "get_node_info") {
+        await callJson("/rpc/server/get-node-info", {});
+        await refreshLocal();
+        await refreshRemote();
+        return;
+      }
+      if (targetType === "server" && method === "submit_job") {
+        await callJson("/rpc/server/submit-job", { message: s.rpc_message });
+        await refreshLocal();
+        await refreshRemote();
+        return;
+      }
+      if (targetType === "server" && method === "list_jobs") {
+        await callJson("/rpc/server/list-jobs", {});
+        await refreshLocal();
+        await refreshRemote();
+        return;
+      }
+      if (targetType === "client" && method === "push_alert") {
+        await callJson("/rpc/client/push-alert", { message: s.rpc_message });
+        await refreshLocal();
+        await refreshRemote();
+        return;
+      }
+      if (targetType === "client" && method === "list_alerts") {
+        await callJson("/rpc/client/list-alerts", {});
+        await refreshLocal();
+        await refreshRemote();
+        return;
+      }
+      if (targetType === "client" && method === "client_status") {
+        await callJson("/rpc/client/status", {});
+        await refreshLocal();
+        await refreshRemote();
+        return;
+      }
+      $("resultBox").textContent = pretty({
+        status: 400,
+        data: {
+          error: "UI がこの method に対応していません",
+          targetType,
+          method
+        }
+      });
     };
 
-    $("rpcClientBtn").onclick = async () => {
-      const s = settings();
-      await callJson("/rpc/call-peer-client", { message: s.rpc_message });
-    };
-
-    $("rpcStatusBtn").onclick = async () => {
-      await callJson("/rpc/client-status", {});
+    $("rpcMethodsBtn").onclick = async () => {
+      await callJson("/rpc/methods");
     };
 
     $("publishBtn").onclick = async () => {
@@ -298,6 +388,25 @@
       await refreshRemote();
     };
 
+    $("copyResultBtn").onclick = async () => {
+      const content = $("resultBox").textContent;
+      const button = $("copyResultBtn");
+      const originalText = "レスポンスをコピー";
+      try {
+        await navigator.clipboard.writeText(content);
+        button.textContent = "コピーしました";
+      } catch (error) {
+        button.textContent = "コピー失敗";
+      }
+      setTimeout(() => {
+        button.textContent = originalText;
+      }, 1500);
+    };
+
+    $("rpcTargetType").onchange = updateRpcMethodOptions;
+    $("rpcMethod").onchange = updateRpcMethodSummary;
+
+    updateRpcMethodOptions();
     refreshLocal();
   </script>
 </body>

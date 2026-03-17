@@ -7,6 +7,7 @@ from logging.handlers import RotatingFileHandler
 from collections import deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from typing import Literal
@@ -182,6 +183,8 @@ class NodeRuntime:
         self.connection_target: ConnectionTarget | None = None
         self.incoming_rpc_channels: dict[str, RpcChannel] = {}
         self.received_pubsub_events: deque[dict[str, Any]] = deque(maxlen=20)
+        self.jobs: deque[dict[str, Any]] = deque(maxlen=50)
+        self.alerts: deque[dict[str, Any]] = deque(maxlen=50)
         self.rpc_endpoint = WebsocketRPCEndpoint(
             NodeRpcServerMethods(self),
             on_connect=[self.on_rpc_connect],
@@ -348,12 +351,19 @@ class NodeRuntime:
         self.rpc_task = None
 
         if self.rpc_client is not None:
-            await self.rpc_client.close()
-            self.rpc_client = None
+            try:
+                await asyncio.wait_for(self.rpc_client.close(), timeout=2)
+            except Exception as exc:
+                self.logger.warning("RPC client close did not finish cleanly: %s", exc)
+            finally:
+                self.rpc_client = None
 
         if task is not None:
             task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+            try:
+                await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), timeout=2)
+            except Exception as exc:
+                self.logger.warning("RPC task cancellation timed out: %s", exc)
 
         return {"enabled": False, "status": "stopped"}
 
@@ -374,12 +384,19 @@ class NodeRuntime:
         self.pubsub_task = None
 
         if self.pubsub_client is not None:
-            await self.pubsub_client.disconnect()
-            self.pubsub_client = None
+            try:
+                await asyncio.wait_for(self.pubsub_client.disconnect(), timeout=2)
+            except Exception as exc:
+                self.logger.warning("PubSub client disconnect did not finish cleanly: %s", exc)
+            finally:
+                self.pubsub_client = None
 
         if task is not None:
             task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+            try:
+                await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), timeout=2)
+            except Exception as exc:
+                self.logger.warning("PubSub task cancellation timed out: %s", exc)
 
         return {"enabled": False, "status": "stopped"}
 
@@ -410,8 +427,10 @@ class NodeRuntime:
                 async with WebSocketRpcClient(
                     f"{target.rpc_url}?token={self.config.outbound_token}",
                     NodeRpcClientMethods(self),
+                    retry_config=False,
                     default_response_timeout=10,
                     keep_alive=20,
+                    open_timeout=3,
                 ) as client:
                     self.rpc_client = client
                     await client.wait_on_rpc_ready()
@@ -435,12 +454,14 @@ class NodeRuntime:
                 break
             client = PubSubClient(
                 server_uri=f"{target.pubsub_url}?token={self.config.outbound_token}",
+                retry_config=False,
                 keep_alive=20,
+                open_timeout=3,
             )
             client.subscribe(self.config.pubsub_topic, self.on_pubsub_event)
+            self.pubsub_client = client
             try:
                 async with client:
-                    self.pubsub_client = client
                     await client.wait_until_ready()
                     self.logger.info(
                         "Connected to peer PubSub: %s", target.pubsub_url
@@ -477,6 +498,8 @@ class NodeRuntime:
                 }
             ),
             "incoming_rpc_channels": sorted(self.incoming_rpc_channels.keys()),
+            "job_count": len(self.jobs),
+            "alert_count": len(self.alerts),
             "recent_pubsub_events": list(self.received_pubsub_events),
         }
 
@@ -486,11 +509,40 @@ class NodeRpcServerMethods(RpcMethodsBase):
         super().__init__()
         self.runtime = runtime
 
-    async def echo(self, message: str, sender: str) -> dict:
+    async def get_node_info(self) -> dict:
         return {
+            "node": self.runtime.config.name,
+            "host": self.runtime.config.host,
+            "port": self.runtime.config.port,
+            "rpc_connected": self.runtime.rpc_client is not None,
+            "pubsub_connected": self.runtime.pubsub_client is not None,
+            "incoming_rpc_channels": sorted(self.runtime.incoming_rpc_channels.keys()),
+            "job_count": len(self.runtime.jobs),
+            "alert_count": len(self.runtime.alerts),
+            "recent_pubsub_count": len(self.runtime.received_pubsub_events),
+        }
+
+    async def submit_job(self, message: str, sender: str) -> dict:
+        job = {
+            "id": len(self.runtime.jobs) + 1,
+            "description": message,
+            "submitted_by": sender,
             "handled_by": self.runtime.config.name,
-            "received_from": sender,
-            "message": message,
+            "status": "queued",
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+        self.runtime.jobs.appendleft(job)
+        return {
+            "accepted": True,
+            "job": job,
+            "job_count": len(self.runtime.jobs),
+        }
+
+    async def list_jobs(self) -> dict:
+        return {
+            "node": self.runtime.config.name,
+            "job_count": len(self.runtime.jobs),
+            "jobs": list(self.runtime.jobs),
         }
 
 
@@ -500,21 +552,55 @@ class NodeRpcClientMethods(RpcMethodsBase):
         self.runtime = runtime
 
     async def client_status(self) -> dict:
+        target = self.runtime.connection_target
         return {
             "node": self.runtime.config.name,
+            "host": self.runtime.config.host,
+            "port": self.runtime.config.port,
+            "rpc_registration_enabled": self.runtime.rpc_registration_enabled,
+            "pubsub_registration_enabled": self.runtime.pubsub_registration_enabled,
+            "rpc_connected": self.runtime.rpc_client is not None,
+            "pubsub_connected": self.runtime.pubsub_client is not None,
             "connection_target": (
                 None
-                if self.runtime.connection_target is None
-                else self.runtime.connection_target.remote_name
+                if target is None
+                else {
+                    "remote_name": target.remote_name,
+                    "rpc_url": target.rpc_url,
+                    "pubsub_url": target.pubsub_url,
+                }
             ),
+            "incoming_rpc_channels": sorted(self.runtime.incoming_rpc_channels.keys()),
             "recent_pubsub_count": len(self.runtime.received_pubsub_events),
+            "recent_pubsub_topics": [
+                event["topic"] for event in list(self.runtime.received_pubsub_events)[:5]
+            ],
+            "recent_pubsub_events": list(self.runtime.received_pubsub_events)[:5],
+            "alert_count": len(self.runtime.alerts),
+            "recent_alerts": list(self.runtime.alerts)[:5],
         }
 
-    async def receive_rpc_callback(self, note: str, requested_by: str) -> dict:
-        return {
-            "received_by": self.runtime.config.name,
+    async def push_alert(self, message: str, requested_by: str) -> dict:
+        alert = {
+            "id": len(self.runtime.alerts) + 1,
+            "message": message,
             "requested_by": requested_by,
-            "note": note,
+            "received_by": self.runtime.config.name,
+            "severity": "info",
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+        self.runtime.alerts.appendleft(alert)
+        return {
+            "accepted": True,
+            "alert": alert,
+            "alert_count": len(self.runtime.alerts),
+        }
+
+    async def list_alerts(self) -> dict:
+        return {
+            "node": self.runtime.config.name,
+            "alert_count": len(self.runtime.alerts),
+            "alerts": list(self.runtime.alerts),
         }
 
 
@@ -538,6 +624,51 @@ def require_peer_channel(runtime: NodeRuntime) -> RpcChannel:
             detail="Peer RPC channel is not connected yet",
         )
     return channel
+
+
+def rpc_method_catalog() -> dict[str, list[dict[str, Any]]]:
+    return {
+        "server": [
+            {
+                "name": "get_node_info",
+                "summary": "相手ノードの接続状態と件数情報を取得する",
+                "params": [],
+                "ui_message_field": False,
+            },
+            {
+                "name": "submit_job",
+                "summary": "相手サーバにジョブを登録する",
+                "params": ["message", "sender"],
+                "ui_message_field": True,
+            },
+            {
+                "name": "list_jobs",
+                "summary": "相手サーバに登録されたジョブ一覧を取得する",
+                "params": [],
+                "ui_message_field": False,
+            }
+        ],
+        "client": [
+            {
+                "name": "push_alert",
+                "summary": "相手 callback 側へアラートを送る",
+                "params": ["message", "requested_by"],
+                "ui_message_field": True,
+            },
+            {
+                "name": "list_alerts",
+                "summary": "相手 callback 側に届いたアラート一覧を取得する",
+                "params": [],
+                "ui_message_field": False,
+            },
+            {
+                "name": "client_status",
+                "summary": "相手ノードの callback 側の詳細状態を取得する",
+                "params": [],
+                "ui_message_field": False,
+            },
+        ],
+    }
 
 
 def create_app(config: NodeConfig) -> FastAPI:
@@ -583,8 +714,13 @@ def create_app(config: NodeConfig) -> FastAPI:
                 "registration_disconnect_mutual": "/registration/disconnect-mutual",
                 "registration_disconnect": "/registration/disconnect",
                 "ui_remote_snapshot": "/ui/remote-snapshot",
-                "rpc_call_peer": "/rpc/call-peer",
-                "rpc_call_peer_client": "/rpc/call-peer-client",
+                "rpc_methods": "/rpc/methods",
+                "rpc_server_node_info": "/rpc/server/get-node-info",
+                "rpc_server_submit_job": "/rpc/server/submit-job",
+                "rpc_server_list_jobs": "/rpc/server/list-jobs",
+                "rpc_client_push_alert": "/rpc/client/push-alert",
+                "rpc_client_list_alerts": "/rpc/client/list-alerts",
+                "rpc_client_status": "/rpc/client/status",
                 "pubsub_publish": "/pubsub/publish",
                 "pubsub_events": "/pubsub/events",
             },
@@ -615,6 +751,7 @@ def create_app(config: NodeConfig) -> FastAPI:
                 "local_base_url": runtime.local_base_url,
                 "default_remote_base_url": default_remote_base_url,
                 "default_remote_name": default_remote_name,
+                "rpc_catalog": rpc_method_catalog(),
             },
         )
 
@@ -642,6 +779,21 @@ def create_app(config: NodeConfig) -> FastAPI:
         return {
             "remote_health": remote_health,
             "remote_events": remote_events,
+        }
+
+    @app.get(
+        "/rpc/methods",
+        tags=["rpc"],
+        summary="公開中の sample RPC method 一覧を取得",
+        description=(
+            "このサンプルで現在公開している RPC method 一覧を返します。"
+            " `server` は相手サーバが公開する method、`client` は相手が callback として公開する method です。"
+        ),
+    )
+    async def get_rpc_methods() -> dict[str, Any]:
+        return {
+            "name": config.name,
+            "methods": rpc_method_catalog(),
         }
 
     @app.post(
@@ -746,17 +898,35 @@ def create_app(config: NodeConfig) -> FastAPI:
         }
 
     @app.post(
-        "/rpc/call-peer",
+        "/rpc/server/get-node-info",
         tags=["rpc"],
-        summary="peer の RPC server method を呼ぶ",
+        summary="相手サーバのノード情報を取得",
         description=(
-            "peer 側 FastAPI が公開している RPC server method `echo` を呼び出します。"
+            "peer 側 FastAPI が公開している server method `get_node_info` を呼び出します。"
             " 実行前に `/registration/connect` で RPC 登録を有効化してください。"
         ),
     )
-    async def call_peer(request: RpcCallRequest) -> dict[str, Any]:
+    async def rpc_server_get_node_info() -> dict[str, Any]:
         client = require_rpc_client(runtime)
-        response = await client.other.echo(
+        response = await client.other.get_node_info()
+        return {
+            "from": config.name,
+            "to": runtime.connection_target.remote_name if runtime.connection_target else None,
+            "rpc_result": response.result,
+        }
+
+    @app.post(
+        "/rpc/server/submit-job",
+        tags=["rpc"],
+        summary="相手サーバへジョブを登録",
+        description=(
+            "peer 側 FastAPI が公開している server method `submit_job` を呼び出し、"
+            " 相手サーバにジョブを登録します。"
+        ),
+    )
+    async def rpc_server_submit_job(request: RpcCallRequest) -> dict[str, Any]:
+        client = require_rpc_client(runtime)
+        response = await client.other.submit_job(
             message=request.message,
             sender=config.name,
         )
@@ -767,18 +937,36 @@ def create_app(config: NodeConfig) -> FastAPI:
         }
 
     @app.post(
-        "/rpc/call-peer-client",
+        "/rpc/server/list-jobs",
         tags=["rpc"],
-        summary="peer の RPC client method を呼ぶ",
+        summary="相手サーバのジョブ一覧を取得",
         description=(
-            "peer 側 FastAPI が client として公開している `receive_rpc_callback` を呼び出します。"
-            " 双方向 RPC の確認用です。"
+            "peer 側 FastAPI が公開している server method `list_jobs` を呼び出し、"
+            " 相手サーバに登録されたジョブ一覧を取得します。"
         ),
     )
-    async def call_peer_client(request: RpcCallRequest) -> dict[str, Any]:
+    async def rpc_server_list_jobs() -> dict[str, Any]:
+        client = require_rpc_client(runtime)
+        response = await client.other.list_jobs()
+        return {
+            "from": config.name,
+            "to": runtime.connection_target.remote_name if runtime.connection_target else None,
+            "rpc_result": response.result,
+        }
+
+    @app.post(
+        "/rpc/client/push-alert",
+        tags=["rpc"],
+        summary="相手 callback 側へアラートを送る",
+        description=(
+            "peer 側 FastAPI が callback として公開している `push_alert` を呼び出し、"
+            " 相手 callback 側のアラート一覧へ追加します。"
+        ),
+    )
+    async def rpc_client_push_alert(request: RpcCallRequest) -> dict[str, Any]:
         channel = require_peer_channel(runtime)
-        response = await channel.other.receive_rpc_callback(
-            note=request.message,
+        response = await channel.other.push_alert(
+            message=request.message,
             requested_by=config.name,
         )
         return {
@@ -788,15 +976,33 @@ def create_app(config: NodeConfig) -> FastAPI:
         }
 
     @app.post(
-        "/rpc/client-status",
+        "/rpc/client/list-alerts",
         tags=["rpc"],
-        summary="peer の RPC client 状態を取得",
+        summary="相手 callback 側のアラート一覧を取得",
         description=(
-            "peer 側 FastAPI が client として公開している `client_status` を呼び出します。"
-            " 登録後の双方向接続確認に使います。"
+            "peer 側 FastAPI が callback として公開している `list_alerts` を呼び出し、"
+            " 相手 callback 側のアラート一覧を取得します。"
         ),
     )
-    async def call_peer_client_status() -> dict[str, Any]:
+    async def rpc_client_list_alerts() -> dict[str, Any]:
+        channel = require_peer_channel(runtime)
+        response = await channel.other.list_alerts()
+        return {
+            "from": config.name,
+            "to": runtime.connection_target.remote_name if runtime.connection_target else None,
+            "rpc_result": response.result,
+        }
+
+    @app.post(
+        "/rpc/client/status",
+        tags=["rpc"],
+        summary="相手 callback 側の詳細状態を取得",
+        description=(
+            "peer 側 FastAPI が callback として公開している `client_status` を呼び出し、"
+            " 相手ノードの callback 側の詳細状態を取得します。"
+        ),
+    )
+    async def rpc_client_status() -> dict[str, Any]:
         channel = require_peer_channel(runtime)
         response = await channel.other.client_status()
         return {
