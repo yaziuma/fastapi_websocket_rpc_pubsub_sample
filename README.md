@@ -1,6 +1,6 @@
 # fastapi websocket RPC / PubSub sample
 
-`tmp.md` の内容をベースに、FastAPI を 2 つ立てて相互接続するサンプルです。Python ファイルは `src/rpc_pubsub_sample/` 配下にあります。操作は FastAPI の `/docs` から行う前提です。
+`tmp.md` の内容をベースに、FastAPI を 2 つ立てて相互接続するサンプルです。Python ファイルは `src/rpc_pubsub_sample/` 配下にあります。操作は FastAPI の `/docs` または `/ui` から行えます。
 
 - `src/rpc_pubsub_sample/server_a.py`: `127.0.0.1:60001`
 - `src/rpc_pubsub_sample/server_b.py`: `127.0.0.1:60002`
@@ -69,6 +69,11 @@ PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 12
 - `http://127.0.0.1:60001/docs`
 - `http://127.0.0.1:60002/docs`
 
+簡易 UI:
+
+- `http://127.0.0.1:60001/ui`
+- `http://127.0.0.1:60002/ui`
+
 `config.toml` のポートを変更している場合は、その値に読み替えてください。
 
 ### 1. 登録開始
@@ -135,6 +140,29 @@ PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 12
 
 `POST /registration/disconnect` を `{"target":"all"}` で実行すると、登録ループを止められます。
 
+片側操作だけで双方を解除したい場合は、`POST /registration/disconnect-mutual` を使います。
+
+```bash
+{
+  "target": "all",
+  "remote_base_url": "http://127.0.0.1:60002"
+}
+```
+
+## `/ui` について
+
+`/ui` は 1 画面で以下を行うための簡易 Web UI です。
+
+- 単方向登録
+- 相互登録
+- 単方向解除
+- 相互解除
+- RPC server method 呼び出し
+- RPC client method 呼び出し
+- PubSub publish
+- ローカル状態確認
+- リモート状態確認
+
 ## `curl` で試す場合
 
 `/docs` を使わずに確認したい場合は、README の各 JSON 例をそのまま `curl` で送っても構いません。
@@ -146,6 +174,9 @@ PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 12
   接続先はリクエストボディで指定する
 - `POST /registration/connect-mutual`: 相手ノードと相互登録する
 - `POST /registration/disconnect`: `rpc` / `pubsub` / `all` の登録解除
+- `POST /registration/disconnect-mutual`: 相手ノードと相互解除する
+- `GET /ui`: 1画面で操作できる簡易 UI
+- `POST /ui/remote-snapshot`: UI 用に相手ノードの状態を取得する
 - `POST /rpc/call-peer`: peer サーバの RPC メソッドを呼ぶ
 - `POST /rpc/call-peer-client`: peer 側 FastAPI が公開している RPC client method を呼ぶ
 - `POST /rpc/client-status`: peer 側 FastAPI の RPC client 状態を取得する

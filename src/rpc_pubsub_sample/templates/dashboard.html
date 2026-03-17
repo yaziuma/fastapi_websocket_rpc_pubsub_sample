@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ node_name }} UI</title>
+  <style>
+    :root {
+      --bg: #f6f2ea;
+      --panel: #fffdf9;
+      --line: #d8ccba;
+      --text: #221d17;
+      --muted: #6c6257;
+      --accent: #0f766e;
+      --accent2: #c2410c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(15,118,110,0.10), transparent 24rem),
+        radial-gradient(circle at top right, rgba(194,65,12,0.10), transparent 24rem),
+        var(--bg);
+    }
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      gap: 16px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 30px rgba(34,29,23,0.06);
+    }
+    h1, h2, h3 { margin-top: 0; }
+    p { color: var(--muted); }
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .triple {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      font: inherit;
+      background: #fff;
+      color: var(--text);
+    }
+    button {
+      border: none;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), #0ea5a4);
+      cursor: pointer;
+      font-weight: 700;
+    }
+    button.alt {
+      background: linear-gradient(135deg, var(--accent2), #ea580c);
+    }
+    button.ghost {
+      background: #fff;
+      border: 1px solid var(--line);
+      color: var(--text);
+    }
+    .actions {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 12px;
+    }
+    pre {
+      margin: 0;
+      min-height: 180px;
+      padding: 14px;
+      border-radius: 14px;
+      background: #1d1916;
+      color: #f7f3ec;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow: auto;
+    }
+    .tiny { font-size: 12px; color: var(--muted); }
+    @media (max-width: 960px) {
+      .grid, .triple, .actions { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="panel">
+      <h1>{{ node_name }} Dashboard</h1>
+      <p>登録、相互登録、相互解除、RPC 呼び出し、PubSub 配信、ローカル/リモート状態確認を 1 画面で行います。</p>
+      <p class="tiny">Local: {{ local_base_url }} / <a href="/docs">/docs</a></p>
+    </section>
+
+    <section class="panel">
+      <h2>接続設定</h2>
+      <div class="triple">
+        <div>
+          <label for="remoteName">Remote Name</label>
+          <input id="remoteName" value="{{ default_remote_name }}">
+        </div>
+        <div>
+          <label for="remoteBaseUrl">Remote Base URL</label>
+          <input id="remoteBaseUrl" value="{{ default_remote_base_url }}">
+        </div>
+        <div>
+          <label for="target">Target</label>
+          <select id="target">
+            <option value="all" selected>all</option>
+            <option value="rpc">rpc</option>
+            <option value="pubsub">pubsub</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="connectBtn">登録開始</button>
+        <button id="connectMutualBtn" class="alt">相互登録</button>
+        <button id="disconnectBtn" class="ghost">登録解除</button>
+        <button id="disconnectMutualBtn" class="ghost">相互解除</button>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>操作</h2>
+        <label for="rpcMessage">RPC Message</label>
+        <input id="rpcMessage" value="hello from UI">
+        <div class="actions">
+          <button id="rpcCallBtn">RPC Server Call</button>
+          <button id="rpcClientBtn" class="alt">RPC Client Call</button>
+          <button id="rpcStatusBtn" class="ghost">RPC Client Status</button>
+        </div>
+        <label for="topic" style="margin-top:12px;">PubSub Topic</label>
+        <input id="topic" value="events">
+        <label for="pubsubMessage" style="margin-top:12px;">PubSub Message</label>
+        <input id="pubsubMessage" value="event from UI">
+        <div class="actions">
+          <button id="publishBtn">Publish</button>
+          <button id="localEventsBtn" class="ghost">Local Events</button>
+          <button id="remoteSnapshotBtn" class="ghost">Remote Snapshot</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>API Response</h2>
+        <pre id="resultBox">ここに API 応答を表示します。</pre>
+      </section>
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Local</h2>
+        <div class="actions">
+          <button id="localHealthBtn" class="ghost">Health</button>
+        </div>
+        <pre id="localBox">{}</pre>
+      </section>
+
+      <section class="panel">
+        <h2>Remote</h2>
+        <div class="actions">
+          <button id="remoteHealthBtn" class="ghost">Health + Events</button>
+        </div>
+        <pre id="remoteBox">{}</pre>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const pretty = (value) => JSON.stringify(value, null, 2);
+
+    function settings() {
+      const remoteBaseUrl = $("remoteBaseUrl").value.trim().replace(/\/$/, "");
+      return {
+        target: $("target").value,
+        remote_name: $("remoteName").value.trim(),
+        remote_base_url: remoteBaseUrl,
+        rpc_url: remoteBaseUrl.replace(/^http/, "ws") + "/ws/rpc",
+        pubsub_url: remoteBaseUrl.replace(/^http/, "ws") + "/ws/pubsub",
+        rpc_message: $("rpcMessage").value,
+        topic: $("topic").value,
+        pubsub_message: $("pubsubMessage").value
+      };
+    }
+
+    async function callJson(path, payload, targetBox = "resultBox") {
+      const response = await fetch(path, {
+        method: payload ? "POST" : "GET",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: payload ? JSON.stringify(payload) : undefined
+      });
+      const data = await response.json();
+      $(targetBox).textContent = pretty({ status: response.status, data });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return data;
+    }
+
+    async function refreshLocal() {
+      await callJson("/health", null, "localBox");
+    }
+
+    async function refreshRemote() {
+      const s = settings();
+      await callJson("/ui/remote-snapshot", { remote_base_url: s.remote_base_url }, "remoteBox");
+    }
+
+    $("connectBtn").onclick = async () => {
+      const s = settings();
+      await callJson("/registration/connect", {
+        target: s.target,
+        remote_name: s.remote_name,
+        rpc_url: s.rpc_url,
+        pubsub_url: s.pubsub_url
+      });
+      await refreshLocal();
+    };
+
+    $("connectMutualBtn").onclick = async () => {
+      const s = settings();
+      await callJson("/registration/connect-mutual", {
+        target: s.target,
+        remote_name: s.remote_name,
+        remote_base_url: s.remote_base_url
+      });
+      await refreshLocal();
+      await refreshRemote();
+    };
+
+    $("disconnectBtn").onclick = async () => {
+      const s = settings();
+      await callJson("/registration/disconnect", { target: s.target });
+      await refreshLocal();
+    };
+
+    $("disconnectMutualBtn").onclick = async () => {
+      const s = settings();
+      await callJson("/registration/disconnect-mutual", {
+        target: s.target,
+        remote_base_url: s.remote_base_url
+      });
+      await refreshLocal();
+      await refreshRemote();
+    };
+
+    $("rpcCallBtn").onclick = async () => {
+      const s = settings();
+      await callJson("/rpc/call-peer", { message: s.rpc_message });
+    };
+
+    $("rpcClientBtn").onclick = async () => {
+      const s = settings();
+      await callJson("/rpc/call-peer-client", { message: s.rpc_message });
+    };
+
+    $("rpcStatusBtn").onclick = async () => {
+      await callJson("/rpc/client-status", {});
+    };
+
+    $("publishBtn").onclick = async () => {
+      const s = settings();
+      await callJson("/pubsub/publish", { topic: s.topic, message: s.pubsub_message });
+      await refreshRemote();
+    };
+
+    $("localEventsBtn").onclick = async () => {
+      await callJson("/pubsub/events");
+    };
+
+    $("remoteSnapshotBtn").onclick = async () => {
+      await refreshRemote();
+    };
+
+    $("localHealthBtn").onclick = async () => {
+      await refreshLocal();
+    };
+
+    $("remoteHealthBtn").onclick = async () => {
+      await refreshRemote();
+    };
+
+    refreshLocal();
+  </script>
+</body>
+</html>

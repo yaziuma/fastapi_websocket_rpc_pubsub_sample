@@ -11,9 +11,11 @@ from pathlib import Path
 from typing import Any
 from typing import Literal
 from urllib.parse import urljoin, urlparse, urlunparse
-from urllib.request import Request, urlopen
+from urllib.request import Request as UrlRequest, urlopen
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, status
+from fastapi import FastAPI, HTTPException, Query, Request as FastAPIRequest, WebSocket, status
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from fastapi_websocket_pubsub import PubSubClient, PubSubEndpoint
 from fastapi_websocket_rpc import RpcMethodsBase, WebSocketRpcClient, WebsocketRPCEndpoint
 from fastapi_websocket_rpc.rpc_channel import RpcChannel
@@ -27,6 +29,7 @@ logging.basicConfig(
 
 LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
 LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
 
 def configure_file_logging(node_name: str) -> Path:
@@ -135,6 +138,29 @@ class MutualRegistrationRequest(BaseModel):
         description="相手ノードの HTTP ベース URL。例: `http://127.0.0.1:60002`",
         examples=["http://127.0.0.1:60002"],
     )
+
+
+class MutualDisconnectRequest(BaseModel):
+    target: Literal["rpc", "pubsub", "all"] = Field(
+        default="all",
+        description="相互解除の対象。`rpc` / `pubsub` / `all` を指定",
+        examples=["all"],
+    )
+    remote_base_url: str = Field(
+        ...,
+        description="相手ノードの HTTP ベース URL。例: `http://127.0.0.1:60002`",
+        examples=["http://127.0.0.1:60002"],
+    )
+
+
+class RemoteSnapshotRequest(BaseModel):
+    remote_base_url: str = Field(
+        ...,
+        description="状態取得対象ノードの HTTP ベース URL",
+        examples=["http://127.0.0.1:60002"],
+    )
+
+
 @dataclass
 class ConnectionTarget:
     remote_name: str
@@ -189,27 +215,35 @@ class NodeRuntime:
         ws_scheme = "wss" if parsed.scheme == "https" else "ws"
         return urlunparse((ws_scheme, parsed.netloc, path, "", "", ""))
 
-    async def post_remote_registration(self, remote_base_url: str, payload: dict[str, Any]) -> dict[str, Any]:
-        registration_url = urljoin(remote_base_url.rstrip("/") + "/", "registration/connect")
+    async def request_remote_json(
+        self,
+        remote_base_url: str,
+        path: str,
+        *,
+        method: str = "GET",
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        target_url = urljoin(remote_base_url.rstrip("/") + "/", path.lstrip("/"))
 
-        def _post() -> dict[str, Any]:
-            request = Request(
-                registration_url,
-                data=json.dumps(payload).encode(),
+        def _request() -> dict[str, Any]:
+            body = None if payload is None else json.dumps(payload).encode()
+            request = UrlRequest(
+                target_url,
+                data=body,
                 headers={"content-type": "application/json", "accept": "application/json"},
-                method="POST",
+                method=method,
             )
             with urlopen(request, timeout=5) as response:
                 return json.loads(response.read().decode())
 
         try:
-            return await asyncio.to_thread(_post)
+            return await asyncio.to_thread(_request)
         except HTTPException:
             raise
         except Exception as exc:
             raise HTTPException(
                 status_code=502,
-                detail=f"failed to call remote registration endpoint: {exc}",
+                detail=f"failed to call remote endpoint {target_url}: {exc}",
             ) from exc
 
     def _is_same_target(
@@ -509,6 +543,7 @@ def require_peer_channel(runtime: NodeRuntime) -> RpcChannel:
 def create_app(config: NodeConfig) -> FastAPI:
     log_path = configure_file_logging(config.name)
     runtime = NodeRuntime(config)
+    templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -540,17 +575,48 @@ def create_app(config: NodeConfig) -> FastAPI:
         return {
             "name": config.name,
             "docs_url": "/docs",
+            "ui_url": "/ui",
             "sample_endpoints": {
                 "health": "/health",
                 "registration_connect": "/registration/connect",
                 "registration_connect_mutual": "/registration/connect-mutual",
+                "registration_disconnect_mutual": "/registration/disconnect-mutual",
                 "registration_disconnect": "/registration/disconnect",
+                "ui_remote_snapshot": "/ui/remote-snapshot",
                 "rpc_call_peer": "/rpc/call-peer",
                 "rpc_call_peer_client": "/rpc/call-peer-client",
                 "pubsub_publish": "/pubsub/publish",
                 "pubsub_events": "/pubsub/events",
             },
         }
+
+    @app.get(
+        "/ui",
+        tags=["ui"],
+        summary="簡易操作 UI",
+        description="登録、相互登録、相互解除、RPC、PubSub、状態確認を 1 画面で行う簡易 UI を返します。",
+        response_class=HTMLResponse,
+    )
+    async def ui_dashboard(request: FastAPIRequest) -> HTMLResponse:
+        if config.name == "server-a":
+            default_remote_base_url = "http://127.0.0.1:60002"
+            default_remote_name = "server-b"
+        elif config.name == "server-b":
+            default_remote_base_url = "http://127.0.0.1:60001"
+            default_remote_name = "server-a"
+        else:
+            default_remote_base_url = ""
+            default_remote_name = ""
+        return templates.TemplateResponse(
+            request,
+            "dashboard.html",
+            {
+                "node_name": config.name,
+                "local_base_url": runtime.local_base_url,
+                "default_remote_base_url": default_remote_base_url,
+                "default_remote_name": default_remote_name,
+            },
+        )
 
     @app.get(
         "/health",
@@ -563,6 +629,20 @@ def create_app(config: NodeConfig) -> FastAPI:
     )
     async def health() -> dict[str, Any]:
         return runtime.health_payload()
+
+    @app.post(
+        "/ui/remote-snapshot",
+        tags=["ui"],
+        summary="相手ノードの状態を取得",
+        description="現在ノード経由で相手ノードの `/health` と `/pubsub/events` を取得します。UI 用の補助 API です。",
+    )
+    async def ui_remote_snapshot(request: RemoteSnapshotRequest) -> dict[str, Any]:
+        remote_health = await runtime.request_remote_json(request.remote_base_url, "/health")
+        remote_events = await runtime.request_remote_json(request.remote_base_url, "/pubsub/events")
+        return {
+            "remote_health": remote_health,
+            "remote_events": remote_events,
+        }
 
     @app.post(
         "/registration/connect",
@@ -608,11 +688,37 @@ def create_app(config: NodeConfig) -> FastAPI:
             "rpc_url": runtime.local_rpc_ws_url,
             "pubsub_url": runtime.local_pubsub_ws_url,
         }
-        remote_result = await runtime.post_remote_registration(
+        remote_result = await runtime.request_remote_json(
             request.remote_base_url,
-            remote_request,
+            "/registration/connect",
+            method="POST",
+            payload=remote_request,
         )
 
+        return {
+            "name": config.name,
+            "target": request.target,
+            "local_result": local_result,
+            "remote_result": remote_result,
+            "health": runtime.health_payload(),
+        }
+
+    @app.post(
+        "/registration/disconnect-mutual",
+        tags=["registration"],
+        summary="相手ノードと相互解除する",
+        description=(
+            "このノード自身の登録解除を実行したうえで、相手ノードの `/registration/disconnect` も呼び出します。"
+        ),
+    )
+    async def disconnect_mutual_registration(request: MutualDisconnectRequest) -> dict[str, Any]:
+        local_result = await runtime.disable_registrations(request.target)
+        remote_result = await runtime.request_remote_json(
+            request.remote_base_url,
+            "/registration/disconnect",
+            method="POST",
+            payload={"target": request.target},
+        )
         return {
             "name": config.name,
             "target": request.target,
