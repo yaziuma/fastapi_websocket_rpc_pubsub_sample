@@ -1,0 +1,13 @@
+[project]
+name = "fastapi-websocket-rpc-pubsub-sample"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.115.0",
+    "fastapi-websocket-pubsub>=1.0.1",
+    "fastapi-websocket-rpc>=0.1.29",
+    "pytoml>=0.1.21",
+    "uvicorn>=0.30.0",
+]

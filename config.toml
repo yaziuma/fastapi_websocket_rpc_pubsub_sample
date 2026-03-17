@@ -1,0 +1,17 @@
+[server_a]
+name = "server-a"
+host = "127.0.0.1"
+port = 60001
+outbound_token = "token-server-a"
+
+[server_a.accepted_tokens]
+token-server-b = "server-b"
+
+[server_b]
+name = "server-b"
+host = "127.0.0.1"
+port = 60002
+outbound_token = "token-server-b"
+
+[server_b.accepted_tokens]
+token-server-a = "server-a"
