@@ -316,6 +316,21 @@
       color: var(--rpc);
       margin-left: 8px;
     }
+    .status-pill.priority-high,
+    .status-pill.severity-error {
+      background: rgba(220, 38, 38, 0.12);
+      color: #b91c1c;
+    }
+    .status-pill.priority-normal,
+    .status-pill.severity-warning {
+      background: rgba(217, 119, 6, 0.14);
+      color: #b45309;
+    }
+    .status-pill.priority-low,
+    .status-pill.severity-info {
+      background: rgba(37, 99, 235, 0.12);
+      color: #1d4ed8;
+    }
     .timeline {
       display: grid;
       gap: 10px;
@@ -489,16 +504,21 @@
       color: var(--muted);
       margin-bottom: 6px;
     }
-    input, select, button {
+    input, select, textarea, button {
       width: 100%;
       border-radius: 14px;
       border: 1px solid var(--line);
       font: inherit;
     }
-    input, select {
+    input, select, textarea {
       padding: 11px 12px;
       background: #fff;
       color: var(--text);
+    }
+    textarea {
+      min-height: 7rem;
+      resize: vertical;
+      line-height: 1.5;
     }
     button {
       padding: 12px 14px;
@@ -568,6 +588,17 @@
     .compact-form {
       display: grid;
       gap: 8px;
+    }
+    .control-lead {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .json-help {
+      margin-top: -2px;
+      color: var(--muted);
+      font-size: 12px;
     }
     .action-main {
       width: auto;
@@ -944,38 +975,75 @@
             </div>
 
             <div class="control-panel active" data-control-panel="job">
-              <h3>Job を相手サーバへ送る</h3>
+              <h3>Job: 相手サーバへ処理を依頼する</h3>
+              <p class="control-lead">1対1 の命令です。相手サーバにジョブをキュー登録し、処理種別と優先度とパラメータを返します。</p>
               <div class="compact-form">
-                <label for="jobMessage">Job 内容</label>
-                <input id="jobMessage" value="在庫同期ジョブを実行してください">
+                <label for="jobType">処理種別</label>
+                <select id="jobType">
+                  <option value="配送手配" selected>配送手配</option>
+                  <option value="在庫同期">在庫同期</option>
+                  <option value="月次レポート生成">月次レポート生成</option>
+                </select>
+                <label for="jobPriority">優先度</label>
+                <select id="jobPriority">
+                  <option value="high">High</option>
+                  <option value="normal" selected>Normal</option>
+                  <option value="low">Low</option>
+                </select>
+                <label for="jobParams">パラメータ JSON</label>
+                <textarea id="jobParams">{
+  "order_id": "9999",
+  "warehouse": "tokyo-1",
+  "force": true
+}</textarea>
+                <div class="json-help">例: order_id や warehouse など、処理対象を JSON で渡します。</div>
               </div>
-              <button id="submitJobBtn" class="action-main">Job を送る</button>
+              <button id="submitJobBtn" class="action-main">処理を要求する</button>
               <div class="light-actions">
                 <button id="listJobsBtn" class="text-action">相手 Job 一覧を再取得</button>
               </div>
             </div>
 
             <div class="control-panel" data-control-panel="alert">
-              <h3>Alert を相手 callback へ送る</h3>
+              <h3>Alert: 相手 callback へ緊急通知する</h3>
+              <p class="control-lead">1対1 の割り込みです。相手サーバではなく、相手が公開している callback 側に直接アラートを差し込みます。</p>
               <div class="compact-form">
-                <label for="alertMessage">Alert 内容</label>
-                <input id="alertMessage" value="ジョブ投入を受け付けました">
+                <label for="alertSeverity">重要度</label>
+                <select id="alertSeverity">
+                  <option value="error">Error</option>
+                  <option value="warning" selected>Warning</option>
+                  <option value="info">Info</option>
+                </select>
+                <label for="alertMessage">通知メッセージ</label>
+                <textarea id="alertMessage">注文9999の在庫が足りません。至急確認してください。</textarea>
               </div>
-              <button id="pushAlertBtn" class="alt action-main">Alert を送る</button>
+              <button id="pushAlertBtn" class="alt action-main">緊急通知を送る</button>
               <div class="light-actions">
                 <button id="listAlertsBtn" class="text-action">相手 Alert 一覧を再取得</button>
               </div>
             </div>
 
             <div class="control-panel" data-control-panel="pubsub">
-              <h3>PubSub Event を配信する</h3>
+              <h3>PubSub: 出来事を全体へ配信する</h3>
+              <p class="control-lead">1対N のイベント共有です。送信側は購読者を意識せず、topic と event_type と payload だけを publish します。</p>
               <div class="compact-form">
                 <label for="topic">Topic</label>
-                <input id="topic" value="events">
-                <label for="pubsubMessage">Event 内容</label>
-                <input id="pubsubMessage" value="配送完了イベントを配信しました">
+                <input id="topic" value="order.status">
+                <label for="eventType">Event Type</label>
+                <select id="eventType">
+                  <option value="created">Created</option>
+                  <option value="updated" selected>Updated</option>
+                  <option value="deleted">Deleted</option>
+                </select>
+                <label for="pubsubPayload">イベントデータ JSON</label>
+                <textarea id="pubsubPayload">{
+  "order_id": "9999",
+  "status": "決済完了",
+  "customer_id": "C-1201"
+}</textarea>
+                <div class="json-help">Topic は系統、Event Type は変化種別、payload は共有したい状態変化そのものです。</div>
               </div>
-              <button id="publishBtn" class="sub action-main">Publish する</button>
+              <button id="publishBtn" class="sub action-main">イベントを配信する</button>
               <div class="light-actions">
                 <button id="refreshStateBtn" class="text-action">左右の状態を再取得</button>
               </div>
@@ -1052,10 +1120,31 @@
         pubsub_url: remoteBaseUrl.replace(/^http/, "ws") + "/ws/pubsub",
         rpc_message: $("rpcMessage").value,
         topic: $("topic").value,
-        pubsub_message: $("pubsubMessage").value,
-        job_message: $("jobMessage").value,
+        event_type: $("eventType").value,
+        pubsub_payload_text: $("pubsubPayload").value,
+        job_type: $("jobType").value,
+        job_priority: $("jobPriority").value,
+        job_params_text: $("jobParams").value,
+        alert_severity: $("alertSeverity").value,
         alert_message: $("alertMessage").value
       };
+    }
+
+    function parseJsonField(fieldId, label) {
+      try {
+        const raw = $(fieldId).value.trim();
+        return raw ? JSON.parse(raw) : {};
+      } catch (error) {
+        updateResultSummary(`${label} の JSON が不正です`, `${label} には正しい JSON を入力してください。`);
+        $("resultBox").textContent = pretty({
+          status: 400,
+          data: {
+            error: `${label} の JSON を解釈できません`,
+            detail: String(error)
+          }
+        });
+        throw error;
+      }
     }
 
     async function callJson(path, payload, method = null) {
@@ -1098,10 +1187,12 @@
       }
       $(containerId).innerHTML = jobs.map((job) => `
         <article class="item-card">
-          <strong>#${job.id} ${escapeHtml(job.description)}</strong>
+          <strong>#${job.id} ${escapeHtml(job.job_type || job.summary || "Job")}</strong>
+          <div>依頼内容: ${escapeHtml(job.summary || "処理要求")}</div>
           <div>送信元: ${escapeHtml(job.submitted_by)}</div>
           <div>処理先: ${escapeHtml(job.handled_by)}</div>
-          <div class="submeta">${formatTime(job.created_at)} <span class="status-pill">${escapeHtml(job.status)}</span></div>
+          <div>パラメータ: <code>${escapeHtml(JSON.stringify(job.parameters || {}))}</code></div>
+          <div class="submeta">${formatTime(job.created_at)} <span class="status-pill priority-${escapeHtml(job.priority || "normal")}">${escapeHtml((job.priority || "normal").toUpperCase())}</span><span class="status-pill">${escapeHtml(job.status)}</span></div>
         </article>
       `).join("");
     }
@@ -1116,7 +1207,7 @@
           <strong>#${alert.id} ${escapeHtml(alert.message || "(空メッセージ)")}</strong>
           <div>要求元: ${escapeHtml(alert.requested_by)}</div>
           <div>受信先: ${escapeHtml(alert.received_by)}</div>
-          <div class="submeta">${formatTime(alert.created_at)} / severity: ${escapeHtml(alert.severity || "info")}</div>
+          <div class="submeta">${formatTime(alert.created_at)} <span class="status-pill severity-${escapeHtml(alert.severity || "info")}">${escapeHtml((alert.severity || "info").toUpperCase())}</span></div>
         </article>
       `).join("");
     }
@@ -1129,10 +1220,12 @@
       $(containerId).innerHTML = events.map((event) => {
         const payload = event.data || {};
         const side = payload.source === currentNodeName ? "right" : "";
+        const eventPayload = payload.payload || {};
         return `
           <div class="bubble ${side}">
-            <div><strong>${escapeHtml(payload.message || "(no message)")}</strong></div>
-            <small>${escapeHtml(event.topic || "-")} / source: ${escapeHtml(payload.source || "-")} / received: ${escapeHtml(event.received_by || "-")}</small>
+            <div><strong>${escapeHtml(event.topic || "-")} / ${escapeHtml((payload.event_type || "updated").toUpperCase())}</strong></div>
+            <div>${escapeHtml(JSON.stringify(eventPayload))}</div>
+            <small>source: ${escapeHtml(payload.source || "-")} / received: ${escapeHtml(event.received_by || "-")}</small>
           </div>
         `;
       }).join("");
@@ -1317,7 +1410,7 @@
         const job = payload?.data?.rpc_result?.job;
         updateResultSummary(
           `Job #${job?.id ?? "?"} を相手へ登録しました`,
-          `相手ジョブボードに ${job?.description || "新しいジョブ"} が追加されます。`
+          `${job?.job_type || "ジョブ"} / 優先度 ${String(job?.priority || "normal").toUpperCase()} / 相手ジョブボードでパラメータを確認できます。`
         );
         return;
       }
@@ -1325,13 +1418,14 @@
         const alert = payload?.data?.rpc_result?.alert;
         updateResultSummary(
           `Alert #${alert?.id ?? "?"} を相手 callback へ送信しました`,
-          `相手ベルの件数とアラート履歴、トースト表示を確認してください。`
+          `${String(alert?.severity || "info").toUpperCase()} 通知として相手のアラート履歴へ追加されます。`
         );
         return;
       }
       if (kind === "publish") {
-        const message = payload?.data?.payload?.message || payload?.data?.payload?.source || "イベント";
-        updateResultSummary("PubSub イベントを配信しました", `${message} が購読中ノードのタイムラインへ流れます。`);
+        const topic = payload?.data?.topic || "topic";
+        const eventType = payload?.data?.payload?.event_type || "updated";
+        updateResultSummary("PubSub イベントを配信しました", `${topic} / ${String(eventType).toUpperCase()} が購読中ノードのタイムラインへ流れます。`);
         return;
       }
       if (kind === "method_info") {
@@ -1411,7 +1505,10 @@
       }
       messageInput.disabled = !selected.ui_message_field;
       const params = selected.params.length ? selected.params.join(", ") : "なし";
-      $("rpcMethodSummary").textContent = `${targetType} / ${selected.name}: ${selected.summary} / 引数: ${params}`;
+      const uiNote = selected.ui_message_field
+        ? "この method は下のメッセージ入力を使います。"
+        : "この method は右側の専用フォーム値を使います。";
+      $("rpcMethodSummary").textContent = `${targetType} / ${selected.name}: ${selected.summary} / 引数: ${params} / ${uiNote}`;
     }
 
     function activateTab(group, tabName) {
@@ -1549,7 +1646,12 @@
 
     $("submitJobBtn").onclick = async () => {
       animatePipe("rpcPipe", "roundtrip");
-      const result = await callJson("/rpc/server/submit-job", { message: settings().job_message });
+      const s = settings();
+      const result = await callJson("/rpc/server/submit-job", {
+        job_type: s.job_type,
+        priority: s.job_priority,
+        parameters: parseJsonField("jobParams", "Job パラメータ")
+      });
       summarizeResult("submit_job", result);
       await refreshBoth();
     };
@@ -1563,7 +1665,11 @@
 
     $("pushAlertBtn").onclick = async () => {
       animatePipe("rpcPipe", "roundtrip");
-      const result = await callJson("/rpc/client/push-alert", { message: settings().alert_message });
+      const s = settings();
+      const result = await callJson("/rpc/client/push-alert", {
+        severity: s.alert_severity,
+        message: s.alert_message
+      });
       summarizeResult("push_alert", result);
       await refreshBoth();
     };
@@ -1578,7 +1684,11 @@
     $("publishBtn").onclick = async () => {
       animatePipe("pubsubPipe", "forward");
       const s = settings();
-      const result = await callJson("/pubsub/publish", { topic: s.topic, message: s.pubsub_message });
+      const result = await callJson("/pubsub/publish", {
+        topic: s.topic,
+        event_type: s.event_type,
+        payload: parseJsonField("pubsubPayload", "PubSub payload")
+      });
       summarizeResult("publish", result);
       await refreshBoth();
     };
@@ -1596,11 +1706,18 @@
       if (targetType === "server" && method === "get_node_info") {
         await callJson("/rpc/server/get-node-info", {});
       } else if (targetType === "server" && method === "submit_job") {
-        await callJson("/rpc/server/submit-job", { message: s.rpc_message });
+        await callJson("/rpc/server/submit-job", {
+          job_type: s.job_type,
+          priority: s.job_priority,
+          parameters: parseJsonField("jobParams", "Job パラメータ")
+        });
       } else if (targetType === "server" && method === "list_jobs") {
         await callJson("/rpc/server/list-jobs", {});
       } else if (targetType === "client" && method === "push_alert") {
-        await callJson("/rpc/client/push-alert", { message: s.rpc_message });
+        await callJson("/rpc/client/push-alert", {
+          severity: s.alert_severity,
+          message: s.alert_message
+        });
       } else if (targetType === "client" && method === "list_alerts") {
         await callJson("/rpc/client/list-alerts", {});
       } else if (targetType === "client" && method === "client_status") {

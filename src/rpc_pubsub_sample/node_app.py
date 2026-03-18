@@ -82,21 +82,57 @@ class NodeConfig:
 class RpcCallRequest(BaseModel):
     message: str = Field(
         ...,
-        description="peer に送るメッセージ",
+        description="後方互換のために残しているメッセージ本文",
         examples=["hello from server-a"],
     )
 
 
-class PubSubPublishRequest(BaseModel):
+class JobSubmitRequest(BaseModel):
+    job_type: str = Field(
+        ...,
+        description="相手サーバへ依頼する処理種別",
+        examples=["配送手配"],
+    )
+    priority: Literal["high", "normal", "low"] = Field(
+        default="normal",
+        description="ジョブの優先度",
+        examples=["high"],
+    )
+    parameters: dict[str, Any] = Field(
+        default_factory=dict,
+        description="ジョブ実行に必要なパラメータ",
+        examples=[{"order_id": "9999", "warehouse": "tokyo-1"}],
+    )
+
+
+class AlertPushRequest(BaseModel):
+    severity: Literal["error", "warning", "info"] = Field(
+        default="info",
+        description="アラートの重要度",
+        examples=["error"],
+    )
     message: str = Field(
         ...,
-        description="publish するメッセージ",
-        examples=["event from server-a"],
+        description="相手 callback 側へ割り込ませる通知メッセージ",
+        examples=["注文9999の在庫が足りません。至急確認してください。"],
     )
+
+
+class PubSubPublishRequest(BaseModel):
     topic: str = Field(
         default="events",
         description="publish 先のトピック名",
-        examples=["events"],
+        examples=["order.status"],
+    )
+    event_type: Literal["created", "updated", "deleted"] = Field(
+        default="updated",
+        description="イベント種別",
+        examples=["updated"],
+    )
+    payload: dict[str, Any] = Field(
+        default_factory=dict,
+        description="購読者へ配信するイベントデータ",
+        examples=[{"order_id": "9999", "status": "決済完了"}],
     )
 
 
@@ -542,9 +578,17 @@ class NodeRpcServerMethods(RpcMethodsBase):
         }
 
     async def submit_job(self, message: str, sender: str) -> dict:
+        try:
+            parsed = json.loads(message)
+        except json.JSONDecodeError:
+            parsed = {"job_type": "自由入力ジョブ", "priority": "normal", "parameters": {"message": message}}
+
         job = {
             "id": len(self.runtime.jobs) + 1,
-            "description": message,
+            "job_type": parsed.get("job_type", "自由入力ジョブ"),
+            "priority": parsed.get("priority", "normal"),
+            "parameters": parsed.get("parameters", {}),
+            "summary": f"{parsed.get('job_type', '自由入力ジョブ')} を依頼",
             "submitted_by": sender,
             "handled_by": self.runtime.config.name,
             "status": "queued",
@@ -600,12 +644,18 @@ class NodeRpcClientMethods(RpcMethodsBase):
         }
 
     async def push_alert(self, message: str, requested_by: str) -> dict:
+        try:
+            parsed = json.loads(message)
+        except json.JSONDecodeError:
+            parsed = {"severity": "info", "message": message}
+
         alert = {
             "id": len(self.runtime.alerts) + 1,
-            "message": message,
+            "message": parsed.get("message", ""),
             "requested_by": requested_by,
             "received_by": self.runtime.config.name,
-            "severity": "info",
+            "severity": parsed.get("severity", "info"),
+            "acknowledged": False,
             "created_at": datetime.now(UTC).isoformat(),
         }
         self.runtime.alerts.appendleft(alert)
@@ -656,9 +706,9 @@ def rpc_method_catalog() -> dict[str, list[dict[str, Any]]]:
             },
             {
                 "name": "submit_job",
-                "summary": "相手サーバにジョブを登録する",
-                "params": ["message", "sender"],
-                "ui_message_field": True,
+                "summary": "相手サーバに構造化ジョブを登録する",
+                "params": ["job_type", "priority", "parameters", "sender"],
+                "ui_message_field": False,
             },
             {
                 "name": "list_jobs",
@@ -670,9 +720,9 @@ def rpc_method_catalog() -> dict[str, list[dict[str, Any]]]:
         "client": [
             {
                 "name": "push_alert",
-                "summary": "相手 callback 側へアラートを送る",
-                "params": ["message", "requested_by"],
-                "ui_message_field": True,
+                "summary": "相手 callback 側へ重要度付きアラートを送る",
+                "params": ["severity", "message", "requested_by"],
+                "ui_message_field": False,
             },
             {
                 "name": "list_alerts",
@@ -954,13 +1004,20 @@ def create_app(config: NodeConfig) -> FastAPI:
         summary="相手サーバへジョブを登録",
         description=(
             "peer 側 FastAPI が公開している server method `submit_job` を呼び出し、"
-            " 相手サーバにジョブを登録します。"
+            " 相手サーバに `job_type` / `priority` / `parameters` を持つジョブを登録します。"
         ),
     )
-    async def rpc_server_submit_job(request: RpcCallRequest) -> dict[str, Any]:
+    async def rpc_server_submit_job(request: JobSubmitRequest) -> dict[str, Any]:
         client = require_rpc_client(runtime)
         response = await client.other.submit_job(
-            message=request.message,
+            message=json.dumps(
+                {
+                    "job_type": request.job_type,
+                    "priority": request.priority,
+                    "parameters": request.parameters,
+                },
+                ensure_ascii=False,
+            ),
             sender=config.name,
         )
         return {
@@ -993,13 +1050,19 @@ def create_app(config: NodeConfig) -> FastAPI:
         summary="相手 callback 側へアラートを送る",
         description=(
             "peer 側 FastAPI が callback として公開している `push_alert` を呼び出し、"
-            " 相手 callback 側のアラート一覧へ追加します。"
+            " 相手 callback 側のアラート一覧へ `severity` 付きで追加します。"
         ),
     )
-    async def rpc_client_push_alert(request: RpcCallRequest) -> dict[str, Any]:
+    async def rpc_client_push_alert(request: AlertPushRequest) -> dict[str, Any]:
         channel = require_peer_channel(runtime)
         response = await channel.other.push_alert(
-            message=request.message,
+            message=json.dumps(
+                {
+                    "severity": request.severity,
+                    "message": request.message,
+                },
+                ensure_ascii=False,
+            ),
             requested_by=config.name,
         )
         return {
@@ -1049,14 +1112,15 @@ def create_app(config: NodeConfig) -> FastAPI:
         tags=["pubsub"],
         summary="PubSub メッセージを publish",
         description=(
-            "指定トピックにメッセージを publish します。"
-            " peer 側で `/pubsub/events` を確認すると受信結果を見られます。"
+            "指定トピックにイベントを publish します。"
+            " `event_type` と `payload` を使って、1対N の出来事共有を再現します。"
         ),
     )
     async def publish_message(request: PubSubPublishRequest) -> dict[str, Any]:
         payload = {
             "source": config.name,
-            "message": request.message,
+            "event_type": request.event_type,
+            "payload": request.payload,
         }
         await runtime.pubsub_endpoint.publish(request.topic, payload)
         return {
