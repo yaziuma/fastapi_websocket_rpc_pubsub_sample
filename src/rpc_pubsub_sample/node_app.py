@@ -503,6 +503,23 @@ class NodeRuntime:
             "recent_pubsub_events": list(self.received_pubsub_events),
         }
 
+    def ui_snapshot_payload(self) -> dict[str, Any]:
+        health = self.health_payload()
+        return {
+            "node": self.config.name,
+            "base_url": self.local_base_url,
+            "phase": {
+                "connected": health["rpc_connected"] or health["pubsub_connected"],
+                "rpc_ready": health["rpc_connected"],
+                "pubsub_ready": health["pubsub_connected"],
+                "fully_ready": health["rpc_connected"] and health["pubsub_connected"],
+            },
+            "health": health,
+            "jobs": list(self.jobs),
+            "alerts": list(self.alerts),
+            "events": list(self.received_pubsub_events),
+        }
+
 
 class NodeRpcServerMethods(RpcMethodsBase):
     def __init__(self, runtime: NodeRuntime):
@@ -709,6 +726,7 @@ def create_app(config: NodeConfig) -> FastAPI:
             "ui_url": "/ui",
             "sample_endpoints": {
                 "health": "/health",
+                "ui_state": "/ui/state",
                 "registration_connect": "/registration/connect",
                 "registration_connect_mutual": "/registration/connect-mutual",
                 "registration_disconnect_mutual": "/registration/disconnect-mutual",
@@ -727,10 +745,25 @@ def create_app(config: NodeConfig) -> FastAPI:
         }
 
     @app.get(
+        "/ui/state",
+        tags=["ui"],
+        summary="UI 描画用のローカル状態を取得",
+        description=(
+            "現在ノードの接続状態、ジョブ、アラート、PubSub イベントを UI 描画向けにまとめて返します。"
+            " `/ui` が左右ペインのカードやタイムラインを描くための補助 API です。"
+        ),
+    )
+    async def ui_state() -> dict[str, Any]:
+        return runtime.ui_snapshot_payload()
+
+    @app.get(
         "/ui",
         tags=["ui"],
         summary="簡易操作 UI",
-        description="登録、相互登録、相互解除、RPC、PubSub、状態確認を 1 画面で行う簡易 UI を返します。",
+        description=(
+            "左右 2 ペイン、接続パイプ、ジョブ、アラート、イベントタイムラインで"
+            " RPC / PubSub の流れを可視化する学習用 UI を返します。"
+        ),
         response_class=HTMLResponse,
     )
     async def ui_dashboard(request: FastAPIRequest) -> HTMLResponse:
@@ -774,11 +807,9 @@ def create_app(config: NodeConfig) -> FastAPI:
         description="現在ノード経由で相手ノードの `/health` と `/pubsub/events` を取得します。UI 用の補助 API です。",
     )
     async def ui_remote_snapshot(request: RemoteSnapshotRequest) -> dict[str, Any]:
-        remote_health = await runtime.request_remote_json(request.remote_base_url, "/health")
-        remote_events = await runtime.request_remote_json(request.remote_base_url, "/pubsub/events")
+        remote_state = await runtime.request_remote_json(request.remote_base_url, "/ui/state")
         return {
-            "remote_health": remote_health,
-            "remote_events": remote_events,
+            "remote_state": remote_state,
         }
 
     @app.get(

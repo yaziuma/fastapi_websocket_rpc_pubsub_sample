@@ -3,16 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ node_name }} UI</title>
+  <title>{{ node_name }} Dashboard</title>
   <style>
     :root {
-      --bg: #f6f2ea;
-      --panel: #fffdf9;
-      --line: #d8ccba;
-      --text: #221d17;
-      --muted: #6c6257;
-      --accent: #0f766e;
-      --accent2: #c2410c;
+      --bg: #f4efe7;
+      --panel: rgba(255, 252, 247, 0.92);
+      --line: #d7cab7;
+      --text: #201913;
+      --muted: #6f665d;
+      --rpc: #0f766e;
+      --pubsub: #2563eb;
+      --accent: #c2410c;
+      --ok: #15803d;
+      --warn: #b45309;
+      --danger: #b91c1c;
+      --shadow: 0 18px 40px rgba(32, 25, 19, 0.08);
     }
     * { box-sizing: border-box; }
     body {
@@ -20,34 +25,364 @@
       font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(15,118,110,0.10), transparent 24rem),
-        radial-gradient(circle at top right, rgba(194,65,12,0.10), transparent 24rem),
-        var(--bg);
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.14), transparent 24rem),
+        radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 24rem),
+        linear-gradient(180deg, #f8f5ef 0%, #f1eadf 100%);
     }
     .page {
-      max-width: 1280px;
+      max-width: 1440px;
       margin: 0 auto;
       padding: 24px;
       display: grid;
-      gap: 16px;
+      gap: 18px;
     }
     .panel {
       background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 18px;
-      box-shadow: 0 10px 30px rgba(34,29,23,0.06);
+      border: 1px solid rgba(215, 202, 183, 0.9);
+      border-radius: 24px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
     }
-    h1, h2, h3 { margin-top: 0; }
-    p { color: var(--muted); }
-    .grid {
+    .hero {
       display: grid;
       gap: 16px;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: 1.3fr 1fr;
+      align-items: start;
     }
-    .triple {
+    .hero h1, h2, h3, h4 {
+      margin: 0;
+    }
+    .hero p, .helper, .muted {
+      color: var(--muted);
+    }
+    .step-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .step {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+    }
+    .step-num {
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--rpc), var(--pubsub));
+    }
+    .hero-status {
       display: grid;
       gap: 12px;
+    }
+    .status-card {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+    }
+    .status-card strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+    .status-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.86);
+      font-size: 12px;
+    }
+    .chip.ok {
+      color: var(--ok);
+      border-color: rgba(21, 128, 61, 0.25);
+      background: rgba(220, 252, 231, 0.9);
+    }
+    .chip.off {
+      color: var(--muted);
+      background: rgba(241, 245, 249, 0.9);
+    }
+    .chip.warn {
+      color: var(--warn);
+      background: rgba(255, 237, 213, 0.9);
+    }
+    .network {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 240px minmax(0, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+    .node-pane {
+      position: relative;
+      min-height: 620px;
+      display: grid;
+      gap: 14px;
+    }
+    .node-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .node-title {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .node-title small {
+      color: var(--muted);
+    }
+    .bell {
+      position: relative;
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      background: #fff;
+      font-size: 22px;
+    }
+    .badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      min-width: 24px;
+      height: 24px;
+      padding: 0 6px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: #dc2626;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      border: 2px solid #fff;
+    }
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .metric {
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+    }
+    .metric strong {
+      display: block;
+      font-size: 22px;
+      margin-top: 6px;
+    }
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+    .widget {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.78);
+    }
+    .widget-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .card-list {
+      display: grid;
+      gap: 10px;
+      max-height: 220px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .item-card {
+      border: 1px solid rgba(215, 202, 183, 0.8);
+      border-radius: 16px;
+      padding: 12px;
+      background: #fff;
+      box-shadow: 0 8px 18px rgba(32, 25, 19, 0.04);
+      animation: pop-in 240ms ease-out;
+    }
+    .item-card strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+    .submeta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(15, 118, 110, 0.1);
+      color: var(--rpc);
+      margin-left: 8px;
+    }
+    .timeline {
+      display: grid;
+      gap: 10px;
+      max-height: 220px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .bubble {
+      max-width: 88%;
+      padding: 10px 12px;
+      border-radius: 18px;
+      background: rgba(37, 99, 235, 0.12);
+      border: 1px solid rgba(37, 99, 235, 0.18);
+      animation: pop-in 240ms ease-out;
+    }
+    .bubble.right {
+      margin-left: auto;
+      background: rgba(15, 118, 110, 0.12);
+      border-color: rgba(15, 118, 110, 0.18);
+    }
+    .bubble small {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+    }
+    .empty {
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px dashed var(--line);
+      color: var(--muted);
+      text-align: center;
+      background: rgba(255, 255, 255, 0.6);
+    }
+    .pipes {
+      position: relative;
+      display: grid;
+      gap: 18px;
+      align-content: center;
+      justify-items: stretch;
+    }
+    .pipe-card {
+      position: relative;
+      padding: 14px 12px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.76);
+      overflow: hidden;
+      min-height: 150px;
+    }
+    .pipe-card h3 {
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    .pipe-track {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
+      margin: 24px 0 10px;
+      background:
+        repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.36) 0 12px, transparent 12px 22px);
+    }
+    .pipe-card.active-rpc .pipe-track {
+      background: linear-gradient(90deg, rgba(15, 118, 110, 0.34), rgba(20, 184, 166, 0.9));
+    }
+    .pipe-card.active-pubsub .pipe-track {
+      background: linear-gradient(90deg, rgba(37, 99, 235, 0.34), rgba(96, 165, 250, 0.9));
+    }
+    .pipe-card.inactive .pipe-track {
+      opacity: 0.7;
+    }
+    .pipe-track::before,
+    .pipe-track::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      transform: translateY(-50%);
+      background: #fff;
+      border: 2px solid var(--line);
+    }
+    .pipe-track::before { left: -2px; }
+    .pipe-track::after { right: -2px; }
+    .pipe-pulse {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      transform: translateY(-50%);
+      background: #fff;
+      border: 3px solid currentColor;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .pipe-card.active-rpc { color: var(--rpc); }
+    .pipe-card.active-pubsub { color: var(--pubsub); }
+    .pipe-card.pulsing .pipe-pulse.forward {
+      animation: pulse-forward 850ms ease-out;
+    }
+    .pipe-card.pulsing .pipe-pulse.reverse {
+      animation: pulse-reverse 850ms ease-out;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .legend i {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+    }
+    .controls {
+      display: grid;
+      gap: 18px;
+    }
+    .controls.locked {
+      opacity: 0.5;
+      pointer-events: none;
+      filter: saturate(0.7);
+    }
+    .form-grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .card-grid {
+      display: grid;
+      gap: 14px;
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     label {
@@ -58,62 +393,212 @@
     }
     input, select, button {
       width: 100%;
-      padding: 10px 12px;
-      border-radius: 12px;
+      border-radius: 14px;
       border: 1px solid var(--line);
       font: inherit;
+    }
+    input, select {
+      padding: 11px 12px;
       background: #fff;
       color: var(--text);
     }
     button {
-      border: none;
+      padding: 12px 14px;
       color: #fff;
-      background: linear-gradient(135deg, var(--accent), #0ea5a4);
-      cursor: pointer;
+      background: linear-gradient(135deg, var(--rpc), #14b8a6);
       font-weight: 700;
+      cursor: pointer;
+      border: none;
     }
     button.alt {
-      background: linear-gradient(135deg, var(--accent2), #ea580c);
+      background: linear-gradient(135deg, var(--accent), #f97316);
+    }
+    button.sub {
+      background: linear-gradient(135deg, var(--pubsub), #60a5fa);
     }
     button.ghost {
+      color: var(--text);
       background: #fff;
       border: 1px solid var(--line);
-      color: var(--text);
     }
-    .actions {
+    .control-card {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.78);
+      display: grid;
+      gap: 12px;
+    }
+    .action-row {
       display: grid;
       gap: 10px;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-top: 12px;
+    }
+    .response-layout {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1.1fr 1fr;
+    }
+    .response-summary {
+      min-height: 160px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+    }
+    .response-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    details {
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: #161311;
+      color: #faf5ed;
+      overflow: hidden;
+    }
+    summary {
+      cursor: pointer;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.06);
     }
     pre {
       margin: 0;
-      min-height: 180px;
       padding: 14px;
-      border-radius: 14px;
-      background: #1d1916;
-      color: #f7f3ec;
       white-space: pre-wrap;
       word-break: break-word;
       overflow: auto;
+      max-height: 260px;
     }
-    .tiny { font-size: 12px; color: var(--muted); }
-    @media (max-width: 960px) {
-      .grid, .triple, .actions { grid-template-columns: 1fr; }
+    .toast-stack {
+      position: absolute;
+      top: 68px;
+      right: 12px;
+      display: grid;
+      gap: 8px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .toast {
+      min-width: 220px;
+      max-width: 280px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(32, 25, 19, 0.92);
+      color: #fff;
+      box-shadow: 0 18px 30px rgba(32, 25, 19, 0.2);
+      animation: toast-in 220ms ease-out forwards, toast-out 260ms ease-in 2.9s forwards;
+    }
+    .toast small {
+      display: block;
+      margin-top: 6px;
+      color: rgba(255, 255, 255, 0.72);
+    }
+    .tiny {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    @keyframes pulse-forward {
+      0% { left: 0; opacity: 0; }
+      10% { opacity: 1; }
+      100% { left: calc(100% - 18px); opacity: 0; }
+    }
+    @keyframes pulse-reverse {
+      0% { left: calc(100% - 18px); opacity: 0; }
+      10% { opacity: 1; }
+      100% { left: 0; opacity: 0; }
+    }
+    @keyframes pop-in {
+      from { opacity: 0; transform: translateY(8px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(24px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes toast-out {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(24px); }
+    }
+    @media (max-width: 1180px) {
+      .network, .hero, .response-layout {
+        grid-template-columns: 1fr;
+      }
+      .pipes {
+        order: 2;
+      }
+      .node-pane {
+        min-height: auto;
+      }
+    }
+    @media (max-width: 880px) {
+      .form-grid, .card-grid, .metric-row, .action-row {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
   <div class="page">
-    <section class="panel">
-      <h1>{{ node_name }} Dashboard</h1>
-      <p>登録、相互登録、相互解除、相手サーバのジョブ操作、相手 callback 側のアラート操作、PubSub 配信、ローカル/リモート状態確認を 1 画面で行います。</p>
-      <p class="tiny">Local: {{ local_base_url }} / <a href="/docs">/docs</a></p>
+    <section class="panel hero">
+      <div>
+        <h1>{{ node_name }} Learning Dashboard</h1>
+        <p>この画面は、WebSocket RPC と PubSub を「どこが繋がり、どちらへ流れ、何が相手に残るのか」で理解するための学習用 UI です。生の JSON を読むのではなく、接続パイプ、ジョブカード、アラートベル、イベントタイムラインで状態を追います。</p>
+        <div class="step-list">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <strong>まず接続する</strong>
+              <div class="tiny">相手ノードの URL を入れて RPC と PubSub を開通させます。中央の線が緑や青に変われば経路が使えます。</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <strong>次に機能を使う</strong>
+              <div class="tiny">ジョブ送信は相手サーバの仕事キューに入り、アラート送信は相手 callback 側の通知ベルに積まれます。</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <strong>最後に流れを見る</strong>
+              <div class="tiny">PubSub はイベントタイムラインに流れ、RPC は中央のパイプ上をパルスが往復します。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-status">
+        <div class="status-card">
+          <strong>現在の画面</strong>
+          <div class="tiny">Local: {{ local_base_url }}</div>
+          <div class="tiny"><a href="/docs">/docs</a> と <a href="/">/</a> も利用できます。</div>
+        </div>
+        <div class="status-card">
+          <strong>接続フェーズ</strong>
+          <div class="status-inline" id="phaseChips">
+            <span class="chip off">未取得</span>
+          </div>
+        </div>
+        <div class="status-card">
+          <strong>このサンプルで見せること</strong>
+          <div class="legend">
+            <span><i style="background: var(--rpc);"></i>RPC で相手サーバのジョブを操作</span>
+            <span><i style="background: var(--accent);"></i>callback RPC で相手へアラート通知</span>
+            <span><i style="background: var(--pubsub);"></i>PubSub でイベントを全体配信</span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="panel">
-      <h2>接続設定</h2>
-      <div class="triple">
+      <h2>Step 1. 接続設定</h2>
+      <p class="helper">相手ノードの情報を入れて接続します。相互登録を使うと、相手側の登録 API まで自動で呼びます。</p>
+      <div class="form-grid">
         <div>
           <label for="remoteName">Remote Name</label>
           <input id="remoteName" value="{{ default_remote_name }}">
@@ -131,82 +616,262 @@
           </select>
         </div>
       </div>
-      <div class="actions">
-        <button id="connectBtn">登録開始</button>
-        <button id="connectMutualBtn" class="alt">相互登録</button>
-        <button id="disconnectBtn" class="ghost">登録解除</button>
-        <button id="disconnectMutualBtn" class="ghost">相互解除</button>
+      <div class="action-row" style="margin-top: 14px;">
+        <button id="connectBtn">片方向で接続する</button>
+        <button id="connectMutualBtn" class="alt">相互接続する</button>
+        <button id="disconnectBtn" class="ghost">片方向を解除する</button>
+        <button id="disconnectMutualBtn" class="ghost">相互解除する</button>
       </div>
     </section>
 
-    <div class="grid">
-      <section class="panel">
-        <h2>操作</h2>
-        <div class="triple">
-          <div>
-            <label for="rpcTargetType">RPC 公開種別</label>
-            <select id="rpcTargetType">
-              <option value="server" selected>server methods</option>
-              <option value="client">client methods</option>
-            </select>
+    <section class="network">
+      <section class="panel node-pane">
+        <div class="toast-stack" id="localToastStack"></div>
+        <div class="node-header">
+          <div class="node-title">
+            <h2 id="localNodeTitle">{{ node_name }}</h2>
+            <small id="localNodeUrl">{{ local_base_url }}</small>
           </div>
-          <div>
-            <label for="rpcMethod">RPC Method</label>
-            <select id="rpcMethod"></select>
-          </div>
-          <div>
-            <label for="rpcMessage">RPC 送信メッセージ</label>
-            <input id="rpcMessage" value="hello from UI">
+          <div class="bell" title="受信アラート">
+            🔔
+            <span class="badge" id="localAlertBadge">0</span>
           </div>
         </div>
-        <p class="tiny" id="rpcMethodSummary">ここに選択中 method の説明を表示します。</p>
-        <div class="actions">
-          <button id="rpcInvokeBtn">選択した RPC method を実行</button>
-          <button id="rpcMethodsBtn" class="ghost">公開 method 一覧を表示</button>
+        <div class="metric-row">
+          <div class="metric">
+            <div class="tiny">RPC</div>
+            <strong id="localRpcMetric">-</strong>
+          </div>
+          <div class="metric">
+            <div class="tiny">PubSub</div>
+            <strong id="localPubsubMetric">-</strong>
+          </div>
+          <div class="metric">
+            <div class="tiny">Incoming Channel</div>
+            <strong id="localChannelMetric">-</strong>
+          </div>
         </div>
-        <label for="topic" style="margin-top:12px;">PubSub Topic</label>
-        <input id="topic" value="events">
-        <label for="pubsubMessage" style="margin-top:12px;">PubSub Message</label>
-        <input id="pubsubMessage" value="event from UI">
-        <div class="actions">
-          <button id="publishBtn">Publish</button>
-          <button id="localEventsBtn" class="ghost">Local Events</button>
-          <button id="remoteSnapshotBtn" class="ghost">Remote Snapshot</button>
+        <div class="widget">
+          <div class="widget-header">
+            <h3>Local Status</h3>
+            <div class="status-inline" id="localStatusChips"></div>
+          </div>
+          <div class="tiny" id="localConnectionText">未取得</div>
+        </div>
+        <div class="stack">
+          <div class="widget">
+            <div class="widget-header">
+              <h3>ジョブボード</h3>
+              <span class="tiny" id="localJobCount">0 件</span>
+            </div>
+            <div class="card-list" id="localJobs"></div>
+          </div>
+          <div class="widget">
+            <div class="widget-header">
+              <h3>アラート履歴</h3>
+              <span class="tiny" id="localAlertCount">0 件</span>
+            </div>
+            <div class="card-list" id="localAlerts"></div>
+          </div>
+          <div class="widget">
+            <div class="widget-header">
+              <h3>PubSub タイムライン</h3>
+              <span class="tiny" id="localEventCount">0 件</span>
+            </div>
+            <div class="timeline" id="localEvents"></div>
+          </div>
         </div>
       </section>
 
-      <section class="panel">
-        <h2>API Response</h2>
-        <div class="actions">
+      <section class="pipes">
+        <div class="pipe-card inactive" id="rpcPipe">
+          <h3>RPC パイプ</h3>
+          <div class="tiny">相手サーバの method を呼び、ジョブやノード情報を扱います。</div>
+          <div class="pipe-track">
+            <span class="pipe-pulse forward"></span>
+            <span class="pipe-pulse reverse"></span>
+          </div>
+          <div class="status-inline" id="rpcPipeStatus"></div>
+        </div>
+        <div class="pipe-card inactive" id="pubsubPipe">
+          <h3>PubSub パイプ</h3>
+          <div class="tiny">Publish したイベントを、購読しているノードのタイムラインへ流します。</div>
+          <div class="pipe-track">
+            <span class="pipe-pulse forward"></span>
+            <span class="pipe-pulse reverse"></span>
+          </div>
+          <div class="status-inline" id="pubsubPipeStatus"></div>
+        </div>
+      </section>
+
+      <section class="panel node-pane">
+        <div class="toast-stack" id="remoteToastStack"></div>
+        <div class="node-header">
+          <div class="node-title">
+            <h2 id="remoteNodeTitle">Remote Node</h2>
+            <small id="remoteNodeUrl">接続先 URL を入力してください</small>
+          </div>
+          <div class="bell" title="受信アラート">
+            🔔
+            <span class="badge" id="remoteAlertBadge">0</span>
+          </div>
+        </div>
+        <div class="metric-row">
+          <div class="metric">
+            <div class="tiny">RPC</div>
+            <strong id="remoteRpcMetric">-</strong>
+          </div>
+          <div class="metric">
+            <div class="tiny">PubSub</div>
+            <strong id="remotePubsubMetric">-</strong>
+          </div>
+          <div class="metric">
+            <div class="tiny">Incoming Channel</div>
+            <strong id="remoteChannelMetric">-</strong>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-header">
+            <h3>Remote Status</h3>
+            <div class="status-inline" id="remoteStatusChips"></div>
+          </div>
+          <div class="tiny" id="remoteConnectionText">未取得</div>
+        </div>
+        <div class="stack">
+          <div class="widget">
+            <div class="widget-header">
+              <h3>ジョブボード</h3>
+              <span class="tiny" id="remoteJobCount">0 件</span>
+            </div>
+            <div class="card-list" id="remoteJobs"></div>
+          </div>
+          <div class="widget">
+            <div class="widget-header">
+              <h3>アラート履歴</h3>
+              <span class="tiny" id="remoteAlertCount">0 件</span>
+            </div>
+            <div class="card-list" id="remoteAlerts"></div>
+          </div>
+          <div class="widget">
+            <div class="widget-header">
+              <h3>PubSub タイムライン</h3>
+              <span class="tiny" id="remoteEventCount">0 件</span>
+            </div>
+            <div class="timeline" id="remoteEvents"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel">
+      <div class="widget-header">
+        <div>
+          <h2>Step 2. 操作パネル</h2>
+          <div class="tiny">接続ができるまで操作はロックされます。接続後にジョブ、アラート、PubSub を試してください。</div>
+        </div>
+        <div class="status-inline" id="operationStatus"></div>
+      </div>
+      <div class="controls locked" id="controlsPanel">
+        <div class="card-grid">
+          <section class="control-card">
+            <h3>Job を相手サーバへ送る</h3>
+            <div class="tiny">`submit_job` は相手サーバのジョブボードにカードを追加します。</div>
+            <div>
+              <label for="jobMessage">Job 内容</label>
+              <input id="jobMessage" value="在庫同期ジョブを実行してください">
+            </div>
+            <div class="action-row">
+              <button id="submitJobBtn">Job を送る</button>
+              <button id="listJobsBtn" class="ghost">相手 Job 一覧を取得</button>
+            </div>
+          </section>
+          <section class="control-card">
+            <h3>Alert を相手 callback へ送る</h3>
+            <div class="tiny">`push_alert` は相手 callback 側のベルとアラート履歴を増やします。</div>
+            <div>
+              <label for="alertMessage">Alert 内容</label>
+              <input id="alertMessage" value="ジョブ投入を受け付けました">
+            </div>
+            <div class="action-row">
+              <button id="pushAlertBtn" class="alt">Alert を送る</button>
+              <button id="listAlertsBtn" class="ghost">相手 Alert 一覧を取得</button>
+            </div>
+          </section>
+          <section class="control-card">
+            <h3>PubSub Event を配信する</h3>
+            <div class="tiny">Publish したイベントは購読中ノードのタイムラインに流れます。</div>
+            <div>
+              <label for="topic">Topic</label>
+              <input id="topic" value="events">
+            </div>
+            <div>
+              <label for="pubsubMessage">Event 内容</label>
+              <input id="pubsubMessage" value="配送完了イベントを配信しました">
+            </div>
+            <div class="action-row">
+              <button id="publishBtn" class="sub">Publish する</button>
+              <button id="refreshStateBtn" class="ghost">状態を再取得</button>
+            </div>
+          </section>
+        </div>
+
+        <section class="control-card">
+          <h3>RPC Method Explorer</h3>
+          <div class="tiny">公開 method を切り替えると、その method に対応した個別 HTTP エンドポイントを呼びます。汎用 `invoke` は使いません。</div>
+          <div class="form-grid">
+            <div>
+              <label for="rpcTargetType">RPC 公開種別</label>
+              <select id="rpcTargetType">
+                <option value="server" selected>server methods</option>
+                <option value="client">client methods</option>
+              </select>
+            </div>
+            <div>
+              <label for="rpcMethod">RPC Method</label>
+              <select id="rpcMethod"></select>
+            </div>
+            <div>
+              <label for="rpcMessage">Method 用メッセージ</label>
+              <input id="rpcMessage" value="メソッド探索用メッセージ">
+            </div>
+          </div>
+          <div class="tiny" id="rpcMethodSummary">ここに選択中 method の説明を表示します。</div>
+          <div class="action-row">
+            <button id="rpcInvokeBtn">選択した method を実行</button>
+            <button id="rpcMethodsBtn" class="ghost">公開 method 一覧を表示</button>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="panel response-layout">
+      <div class="response-summary">
+        <div class="response-title">
+          <h2>最新の操作結果</h2>
           <button id="copyResultBtn" class="ghost">レスポンスをコピー</button>
         </div>
-        <pre id="resultBox">ここに API 応答を表示します。</pre>
-      </section>
-    </div>
-
-    <div class="grid">
-      <section class="panel">
-        <h2>Local</h2>
-        <div class="actions">
-          <button id="localHealthBtn" class="ghost">Health</button>
-        </div>
-        <pre id="localBox">{}</pre>
-      </section>
-
-      <section class="panel">
-        <h2>Remote</h2>
-        <div class="actions">
-          <button id="remoteHealthBtn" class="ghost">Health + Events</button>
-        </div>
-        <pre id="remoteBox">{}</pre>
-      </section>
-    </div>
+        <div id="resultHeadline">まだ操作していません。</div>
+        <div class="tiny" id="resultMeta">ここには「何を実行して、どこに反映されたか」を短く表示します。</div>
+      </div>
+      <details>
+        <summary>JSON レスポンス詳細</summary>
+        <pre id="resultBox">ここに詳細 JSON を表示します。</pre>
+      </details>
+    </section>
   </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
     const pretty = (value) => JSON.stringify(value, null, 2);
     const rpcCatalog = {{ rpc_catalog | tojson }};
+    const uiState = {
+      local: null,
+      remote: null,
+      previousAlertIds: {
+        local: [],
+        remote: []
+      }
+    };
 
     function settings() {
       const remoteBaseUrl = $("remoteBaseUrl").value.trim().replace(/\/$/, "");
@@ -218,8 +883,308 @@
         pubsub_url: remoteBaseUrl.replace(/^http/, "ws") + "/ws/pubsub",
         rpc_message: $("rpcMessage").value,
         topic: $("topic").value,
-        pubsub_message: $("pubsubMessage").value
+        pubsub_message: $("pubsubMessage").value,
+        job_message: $("jobMessage").value,
+        alert_message: $("alertMessage").value
       };
+    }
+
+    async function callJson(path, payload, method = null) {
+      const response = await fetch(path, {
+        method: method || (payload ? "POST" : "GET"),
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: payload ? JSON.stringify(payload) : undefined
+      });
+      const data = await response.json();
+      $("resultBox").textContent = pretty({ status: response.status, data });
+      if (!response.ok) {
+        updateResultSummary("操作に失敗しました", `HTTP ${response.status} が返りました。詳細 JSON を確認してください。`);
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return { status: response.status, data };
+    }
+
+    function formatTime(value) {
+      if (!value) return "-";
+      try {
+        return new Date(value).toLocaleTimeString("ja-JP", { hour12: false });
+      } catch (error) {
+        return value;
+      }
+    }
+
+    function statusChip(label, active, variant = "ok") {
+      const cls = active ? variant : "off";
+      return `<span class="chip ${cls}">${label}: ${active ? "ON" : "OFF"}</span>`;
+    }
+
+    function setEmpty(containerId, text) {
+      $(containerId).innerHTML = `<div class="empty">${text}</div>`;
+    }
+
+    function renderJobCards(containerId, jobs, emptyText) {
+      if (!jobs || jobs.length === 0) {
+        setEmpty(containerId, emptyText);
+        return;
+      }
+      $(containerId).innerHTML = jobs.map((job) => `
+        <article class="item-card">
+          <strong>#${job.id} ${escapeHtml(job.description)}</strong>
+          <div>送信元: ${escapeHtml(job.submitted_by)}</div>
+          <div>処理先: ${escapeHtml(job.handled_by)}</div>
+          <div class="submeta">${formatTime(job.created_at)} <span class="status-pill">${escapeHtml(job.status)}</span></div>
+        </article>
+      `).join("");
+    }
+
+    function renderAlertCards(containerId, alerts, emptyText) {
+      if (!alerts || alerts.length === 0) {
+        setEmpty(containerId, emptyText);
+        return;
+      }
+      $(containerId).innerHTML = alerts.map((alert) => `
+        <article class="item-card">
+          <strong>#${alert.id} ${escapeHtml(alert.message || "(空メッセージ)")}</strong>
+          <div>要求元: ${escapeHtml(alert.requested_by)}</div>
+          <div>受信先: ${escapeHtml(alert.received_by)}</div>
+          <div class="submeta">${formatTime(alert.created_at)} / severity: ${escapeHtml(alert.severity || "info")}</div>
+        </article>
+      `).join("");
+    }
+
+    function renderEventTimeline(containerId, events, currentNodeName, emptyText) {
+      if (!events || events.length === 0) {
+        setEmpty(containerId, emptyText);
+        return;
+      }
+      $(containerId).innerHTML = events.map((event) => {
+        const payload = event.data || {};
+        const side = payload.source === currentNodeName ? "right" : "";
+        return `
+          <div class="bubble ${side}">
+            <div><strong>${escapeHtml(payload.message || "(no message)")}</strong></div>
+            <small>${escapeHtml(event.topic || "-")} / source: ${escapeHtml(payload.source || "-")} / received: ${escapeHtml(event.received_by || "-")}</small>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderNode(prefix, snapshot) {
+      if (!snapshot) {
+        $(`${prefix}NodeTitle`).textContent = prefix === "local" ? "{{ node_name }}" : "Remote Node";
+        $(`${prefix}NodeUrl`).textContent = prefix === "local" ? "{{ local_base_url }}" : "接続先 URL を入力してください";
+        $(`${prefix}RpcMetric`).textContent = "-";
+        $(`${prefix}PubsubMetric`).textContent = "-";
+        $(`${prefix}ChannelMetric`).textContent = "-";
+        $(`${prefix}StatusChips`).innerHTML = '<span class="chip off">未取得</span>';
+        $(`${prefix}ConnectionText`).textContent = "状態はまだ取得していません。";
+        $(`${prefix}AlertBadge`).textContent = "0";
+        $(`${prefix}JobCount`).textContent = "0 件";
+        $(`${prefix}AlertCount`).textContent = "0 件";
+        $(`${prefix}EventCount`).textContent = "0 件";
+        setEmpty(`${prefix}Jobs`, "まだジョブはありません");
+        setEmpty(`${prefix}Alerts`, "まだアラートはありません");
+        setEmpty(`${prefix}Events`, "まだイベントはありません");
+        return;
+      }
+
+      const health = snapshot.health || {};
+      const connection = health.connection_target;
+      $(`${prefix}NodeTitle`).textContent = snapshot.node || (prefix === "local" ? "{{ node_name }}" : "Remote Node");
+      $(`${prefix}NodeUrl`).textContent = snapshot.base_url || "URL 不明";
+      $(`${prefix}RpcMetric`).textContent = health.rpc_connected ? "Connected" : "Waiting";
+      $(`${prefix}PubsubMetric`).textContent = health.pubsub_connected ? "Connected" : "Waiting";
+      $(`${prefix}ChannelMetric`).textContent = `${(health.incoming_rpc_channels || []).length}`;
+      $(`${prefix}StatusChips`).innerHTML = [
+        statusChip("RPC", !!health.rpc_connected),
+        statusChip("PubSub", !!health.pubsub_connected, "ok"),
+        statusChip("登録", !!health.rpc_registration_enabled || !!health.pubsub_registration_enabled, "warn")
+      ].join("");
+      if (connection) {
+        $(`${prefix}ConnectionText`).textContent =
+          `接続先: ${connection.remote_name} / RPC: ${connection.rpc_url || "-"} / PubSub: ${connection.pubsub_url || "-"}`;
+      } else {
+        $(`${prefix}ConnectionText`).textContent = "接続先はまだ設定されていません。";
+      }
+      $(`${prefix}AlertBadge`).textContent = String((snapshot.alerts || []).length);
+      $(`${prefix}JobCount`).textContent = `${(snapshot.jobs || []).length} 件`;
+      $(`${prefix}AlertCount`).textContent = `${(snapshot.alerts || []).length} 件`;
+      $(`${prefix}EventCount`).textContent = `${(snapshot.events || []).length} 件`;
+      renderJobCards(`${prefix}Jobs`, snapshot.jobs || [], "まだジョブはありません");
+      renderAlertCards(`${prefix}Alerts`, snapshot.alerts || [], "まだアラートはありません");
+      renderEventTimeline(`${prefix}Events`, snapshot.events || [], snapshot.node, "まだイベントはありません");
+    }
+
+    function updatePhase(localSnapshot) {
+      const phase = localSnapshot?.phase || {};
+      $("phaseChips").innerHTML = [
+        statusChip("接続開始", !!(localSnapshot && localSnapshot.health && localSnapshot.health.connection_target), "warn"),
+        statusChip("RPC 開通", !!phase.rpc_ready),
+        statusChip("PubSub 開通", !!phase.pubsub_ready),
+        statusChip("操作可能", !!phase.connected)
+      ].join("");
+
+      const ready = !!phase.connected;
+      const fullyReady = !!phase.fully_ready;
+      $("controlsPanel").classList.toggle("locked", !ready);
+      $("operationStatus").innerHTML = ready
+        ? [
+            '<span class="chip ok">操作解放</span>',
+            fullyReady ? '<span class="chip ok">RPC / PubSub 両方開通</span>' : '<span class="chip warn">部分接続</span>'
+          ].join("")
+        : '<span class="chip off">接続待ち</span>';
+    }
+
+    function updatePipes() {
+      const localHealth = uiState.local?.health || {};
+      const remoteHealth = uiState.remote?.health || {};
+      const rpcActive = !!localHealth.rpc_connected && !!remoteHealth.incoming_rpc_channels?.length;
+      const pubsubActive = !!localHealth.pubsub_connected;
+
+      const rpcPipe = $("rpcPipe");
+      rpcPipe.className = `pipe-card ${rpcActive ? "active-rpc" : "inactive"}`;
+      $("rpcPipeStatus").innerHTML = [
+        statusChip("自ノード RPC", !!localHealth.rpc_connected),
+        statusChip("相手受信口", !!remoteHealth.incoming_rpc_channels?.length)
+      ].join("");
+
+      const pubsubPipe = $("pubsubPipe");
+      pubsubPipe.className = `pipe-card ${pubsubActive ? "active-pubsub" : "inactive"}`;
+      $("pubsubPipeStatus").innerHTML = [
+        statusChip("自ノード PubSub", !!localHealth.pubsub_connected),
+        statusChip("イベント購読", !!uiState.remote)
+      ].join("");
+    }
+
+    function animatePipe(pipeId, direction = "forward") {
+      const pipe = $(pipeId);
+      pipe.classList.remove("pulsing");
+      void pipe.offsetWidth;
+      const forward = pipe.querySelector(".pipe-pulse.forward");
+      const reverse = pipe.querySelector(".pipe-pulse.reverse");
+      forward.style.animation = "none";
+      reverse.style.animation = "none";
+      void pipe.offsetWidth;
+      pipe.classList.add("pulsing");
+      if (direction === "roundtrip") {
+        forward.style.animation = "pulse-forward 850ms ease-out";
+        setTimeout(() => {
+          reverse.style.animation = "pulse-reverse 850ms ease-out";
+        }, 860);
+      } else if (direction === "reverse") {
+        reverse.style.animation = "pulse-reverse 850ms ease-out";
+      } else {
+        forward.style.animation = "pulse-forward 850ms ease-out";
+      }
+    }
+
+    function showToast(stackId, title, meta) {
+      const toast = document.createElement("div");
+      toast.className = "toast";
+      toast.innerHTML = `<strong>${escapeHtml(title)}</strong><small>${escapeHtml(meta)}</small>`;
+      $(stackId).appendChild(toast);
+      setTimeout(() => toast.remove(), 3300);
+    }
+
+    function notifyNewAlerts(prefix, snapshot) {
+      if (!snapshot) return;
+      const currentIds = (snapshot.alerts || []).map((item) => item.id);
+      const previousIds = uiState.previousAlertIds[prefix];
+      const newAlerts = (snapshot.alerts || []).filter((item) => !previousIds.includes(item.id));
+      if (previousIds.length > 0) {
+        for (const alert of newAlerts.slice(0, 2)) {
+          showToast(
+            prefix === "local" ? "localToastStack" : "remoteToastStack",
+            `${snapshot.node} に Alert`,
+            `${alert.requested_by} から: ${alert.message || "(空メッセージ)"}`
+          );
+        }
+      }
+      uiState.previousAlertIds[prefix] = currentIds;
+    }
+
+    function updateResultSummary(headline, meta) {
+      $("resultHeadline").textContent = headline;
+      $("resultMeta").textContent = meta;
+    }
+
+    function summarizeResult(kind, payload) {
+      if (kind === "connect") {
+        updateResultSummary("接続登録を実行しました", "中央の RPC / PubSub パイプの状態と左右ペインの接続チップを確認してください。");
+        return;
+      }
+      if (kind === "disconnect") {
+        updateResultSummary("接続解除を実行しました", "操作パネルはロックされ、パイプは未接続表示に戻ります。");
+        return;
+      }
+      if (kind === "submit_job") {
+        const job = payload?.data?.rpc_result?.job;
+        updateResultSummary(
+          `Job #${job?.id ?? "?"} を相手へ登録しました`,
+          `相手ジョブボードに ${job?.description || "新しいジョブ"} が追加されます。`
+        );
+        return;
+      }
+      if (kind === "push_alert") {
+        const alert = payload?.data?.rpc_result?.alert;
+        updateResultSummary(
+          `Alert #${alert?.id ?? "?"} を相手 callback へ送信しました`,
+          `相手ベルの件数とアラート履歴、トースト表示を確認してください。`
+        );
+        return;
+      }
+      if (kind === "publish") {
+        const message = payload?.data?.payload?.message || payload?.data?.payload?.source || "イベント";
+        updateResultSummary("PubSub イベントを配信しました", `${message} が購読中ノードのタイムラインへ流れます。`);
+        return;
+      }
+      if (kind === "method_info") {
+        updateResultSummary("公開 method 一覧を取得しました", "Explorer の選択肢と `/docs` の説明を合わせて確認してください。");
+        return;
+      }
+      updateResultSummary("最新のレスポンスを更新しました", "詳細 JSON は右側の折りたたみから確認できます。");
+    }
+
+    async function refreshLocal() {
+      const response = await callJson("/ui/state");
+      uiState.local = response.data;
+      notifyNewAlerts("local", uiState.local);
+      renderNode("local", uiState.local);
+      updatePhase(uiState.local);
+      updatePipes();
+      return response.data;
+    }
+
+    async function refreshRemote() {
+      const s = settings();
+      if (!s.remote_base_url) {
+        uiState.remote = null;
+        renderNode("remote", null);
+        updatePipes();
+        return null;
+      }
+      try {
+        const response = await callJson("/ui/remote-snapshot", { remote_base_url: s.remote_base_url });
+        uiState.remote = response.data.remote_state;
+        notifyNewAlerts("remote", uiState.remote);
+        renderNode("remote", uiState.remote);
+        updatePipes();
+        return response.data.remote_state;
+      } catch (error) {
+        uiState.remote = null;
+        renderNode("remote", null);
+        updatePipes();
+        throw error;
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
     }
 
     function updateRpcMethodOptions() {
@@ -242,150 +1207,138 @@
       const methods = rpcCatalog[targetType] || [];
       const selected = methods.find((item) => item.name === methodName);
       const messageInput = $("rpcMessage");
-      const summary = $("rpcMethodSummary");
       if (!selected) {
         messageInput.disabled = false;
-        summary.textContent = "選択中 method の情報がありません。";
+        $("rpcMethodSummary").textContent = "選択中 method の情報がありません。";
         return;
       }
       messageInput.disabled = !selected.ui_message_field;
       const params = selected.params.length ? selected.params.join(", ") : "なし";
-      summary.textContent = `${targetType} / ${selected.name}: ${selected.summary} 引数: ${params}`;
+      $("rpcMethodSummary").textContent = `${targetType} / ${selected.name}: ${selected.summary} / 引数: ${params}`;
     }
 
-    async function callJson(path, payload, targetBox = "resultBox") {
-      const response = await fetch(path, {
-        method: payload ? "POST" : "GET",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: payload ? JSON.stringify(payload) : undefined
-      });
-      const data = await response.json();
-      $(targetBox).textContent = pretty({ status: response.status, data });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return data;
-    }
-
-    async function refreshLocal() {
-      await callJson("/health", null, "localBox");
-    }
-
-    async function refreshRemote() {
-      const s = settings();
-      await callJson("/ui/remote-snapshot", { remote_base_url: s.remote_base_url }, "remoteBox");
+    async function refreshBoth() {
+      await refreshLocal();
+      try {
+        await refreshRemote();
+      } catch (error) {
+        // Remote が未起動でも local 描画は継続する。
+      }
     }
 
     $("connectBtn").onclick = async () => {
       const s = settings();
-      await callJson("/registration/connect", {
+      const result = await callJson("/registration/connect", {
         target: s.target,
         remote_name: s.remote_name,
         rpc_url: s.rpc_url,
         pubsub_url: s.pubsub_url
       });
-      await refreshLocal();
+      summarizeResult("connect", result);
+      await refreshBoth();
     };
 
     $("connectMutualBtn").onclick = async () => {
       const s = settings();
-      await callJson("/registration/connect-mutual", {
+      const result = await callJson("/registration/connect-mutual", {
         target: s.target,
         remote_name: s.remote_name,
         remote_base_url: s.remote_base_url
       });
-      await refreshLocal();
-      await refreshRemote();
+      summarizeResult("connect", result);
+      await refreshBoth();
     };
 
     $("disconnectBtn").onclick = async () => {
       const s = settings();
-      await callJson("/registration/disconnect", { target: s.target });
-      await refreshLocal();
+      const result = await callJson("/registration/disconnect", { target: s.target });
+      summarizeResult("disconnect", result);
+      await refreshBoth();
     };
 
     $("disconnectMutualBtn").onclick = async () => {
       const s = settings();
-      await callJson("/registration/disconnect-mutual", {
+      const result = await callJson("/registration/disconnect-mutual", {
         target: s.target,
         remote_base_url: s.remote_base_url
       });
-      await refreshLocal();
-      await refreshRemote();
+      summarizeResult("disconnect", result);
+      await refreshBoth();
+    };
+
+    $("submitJobBtn").onclick = async () => {
+      animatePipe("rpcPipe", "roundtrip");
+      const result = await callJson("/rpc/server/submit-job", { message: settings().job_message });
+      summarizeResult("submit_job", result);
+      await refreshBoth();
+    };
+
+    $("listJobsBtn").onclick = async () => {
+      animatePipe("rpcPipe", "roundtrip");
+      await callJson("/rpc/server/list-jobs", {});
+      summarizeResult("default");
+      await refreshBoth();
+    };
+
+    $("pushAlertBtn").onclick = async () => {
+      animatePipe("rpcPipe", "roundtrip");
+      const result = await callJson("/rpc/client/push-alert", { message: settings().alert_message });
+      summarizeResult("push_alert", result);
+      await refreshBoth();
+    };
+
+    $("listAlertsBtn").onclick = async () => {
+      animatePipe("rpcPipe", "roundtrip");
+      await callJson("/rpc/client/list-alerts", {});
+      summarizeResult("default");
+      await refreshBoth();
+    };
+
+    $("publishBtn").onclick = async () => {
+      animatePipe("pubsubPipe", "forward");
+      const s = settings();
+      const result = await callJson("/pubsub/publish", { topic: s.topic, message: s.pubsub_message });
+      summarizeResult("publish", result);
+      await refreshBoth();
+    };
+
+    $("refreshStateBtn").onclick = async () => {
+      await refreshBoth();
+      updateResultSummary("左右ノードの状態を再取得しました", "ジョブ、アラート、イベントの表示を最新化しました。");
     };
 
     $("rpcInvokeBtn").onclick = async () => {
       const s = settings();
       const targetType = $("rpcTargetType").value;
       const method = $("rpcMethod").value;
+      animatePipe("rpcPipe", "roundtrip");
       if (targetType === "server" && method === "get_node_info") {
         await callJson("/rpc/server/get-node-info", {});
-        await refreshLocal();
-        await refreshRemote();
-        return;
-      }
-      if (targetType === "server" && method === "submit_job") {
+      } else if (targetType === "server" && method === "submit_job") {
         await callJson("/rpc/server/submit-job", { message: s.rpc_message });
-        await refreshLocal();
-        await refreshRemote();
-        return;
-      }
-      if (targetType === "server" && method === "list_jobs") {
+      } else if (targetType === "server" && method === "list_jobs") {
         await callJson("/rpc/server/list-jobs", {});
-        await refreshLocal();
-        await refreshRemote();
-        return;
-      }
-      if (targetType === "client" && method === "push_alert") {
+      } else if (targetType === "client" && method === "push_alert") {
         await callJson("/rpc/client/push-alert", { message: s.rpc_message });
-        await refreshLocal();
-        await refreshRemote();
-        return;
-      }
-      if (targetType === "client" && method === "list_alerts") {
+      } else if (targetType === "client" && method === "list_alerts") {
         await callJson("/rpc/client/list-alerts", {});
-        await refreshLocal();
-        await refreshRemote();
-        return;
-      }
-      if (targetType === "client" && method === "client_status") {
+      } else if (targetType === "client" && method === "client_status") {
         await callJson("/rpc/client/status", {});
-        await refreshLocal();
-        await refreshRemote();
+      } else {
+        $("resultBox").textContent = pretty({
+          status: 400,
+          data: { error: "UI がこの method に対応していません", targetType, method }
+        });
+        updateResultSummary("未対応 method です", `${targetType} / ${method} は UI から呼び出せません。`);
         return;
       }
-      $("resultBox").textContent = pretty({
-        status: 400,
-        data: {
-          error: "UI がこの method に対応していません",
-          targetType,
-          method
-        }
-      });
+      summarizeResult("default");
+      await refreshBoth();
     };
 
     $("rpcMethodsBtn").onclick = async () => {
-      await callJson("/rpc/methods");
-    };
-
-    $("publishBtn").onclick = async () => {
-      const s = settings();
-      await callJson("/pubsub/publish", { topic: s.topic, message: s.pubsub_message });
-      await refreshRemote();
-    };
-
-    $("localEventsBtn").onclick = async () => {
-      await callJson("/pubsub/events");
-    };
-
-    $("remoteSnapshotBtn").onclick = async () => {
-      await refreshRemote();
-    };
-
-    $("localHealthBtn").onclick = async () => {
-      await refreshLocal();
-    };
-
-    $("remoteHealthBtn").onclick = async () => {
-      await refreshRemote();
+      const result = await callJson("/rpc/methods");
+      summarizeResult("method_info", result);
     };
 
     $("copyResultBtn").onclick = async () => {
@@ -407,7 +1360,7 @@
     $("rpcMethod").onchange = updateRpcMethodSummary;
 
     updateRpcMethodOptions();
-    refreshLocal();
+    refreshBoth();
   </script>
 </body>
 </html>

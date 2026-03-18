@@ -153,17 +153,16 @@ PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 12
 
 ## `/ui` について
 
-`/ui` は 1 画面で以下を行うための簡易 Web UI です。
+`/ui` は API テスターではなく、RPC / PubSub の仕組みを学ぶための可視化ダッシュボードです。
 
-- 単方向登録
-- 相互登録
-- 単方向解除
-- 相互解除
-- RPC 公開種別と method の選択
-- 選択した method に対応する個別エンドポイントの実行
-- PubSub publish
-- ローカル状態確認
-- リモート状態確認
+- 左右 2 ペインで Local / Remote ノードを表示
+- 中央に RPC パイプと PubSub パイプを描画し、開通時は色が変わる
+- `submit_job` の結果をジョブボードにカードとして表示
+- `push_alert` の結果をベルバッジとアラート履歴、トーストで表示
+- PubSub イベントをタイムライン表示
+- 未接続時は操作パネルをロックし、接続後に解放
+- `RPC Method Explorer` では公開 method をセレクトボックスで選び、対応する個別エンドポイントを呼ぶ
+- 最新レスポンスは要約と JSON 詳細の両方で確認でき、コピーボタンも利用可能
 
 ## `curl` で試す場合
 
@@ -178,6 +177,7 @@ PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 12
 - `POST /registration/disconnect`: `rpc` / `pubsub` / `all` の登録解除
 - `POST /registration/disconnect-mutual`: 相手ノードと相互解除する
 - `GET /ui`: 1画面で操作できる簡易 UI
+- `GET /ui/state`: UI 描画用のローカル状態をまとめて返す
 - `POST /ui/remote-snapshot`: UI 用に相手ノードの状態を取得する
 - `GET /rpc/methods`: このサンプルで公開している RPC method 一覧を返す
 - `POST /rpc/server/get-node-info`: peer 側の `get_node_info` を呼ぶ
