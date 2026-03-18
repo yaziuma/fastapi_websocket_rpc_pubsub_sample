@@ -33,31 +33,35 @@
         linear-gradient(180deg, #f7f9fc 0%, #eef3f7 100%);
     }
     .page {
-      width: min(100%, 96rem);
+      width: min(100%, 120rem);
       margin: 0 auto;
-      padding: 24px;
+      padding: 12px;
       display: grid;
-      gap: 20px;
+      gap: 16px;
       min-height: 100dvh;
       height: 100dvh;
-      grid-template-rows: minmax(0, 1.2fr) minmax(0, 0.9fr);
+      grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+      grid-template-rows: minmax(0, 1fr) auto;
       overflow: hidden;
     }
-    .stage {
+    .main-stage,
+    .side-stage {
       min-height: 0;
       overflow: auto;
       padding-right: 6px;
       scrollbar-gutter: stable;
     }
-    .stage-top {
-      display: grid;
-      gap: 20px;
-      grid-template-rows: auto minmax(0, 1fr);
+    .result-stage {
+      grid-column: 1 / -1;
     }
-    .stage-bottom {
+    .main-stage {
       display: grid;
-      gap: 20px;
-      grid-template-rows: auto minmax(0, 1fr);
+      gap: 16px;
+    }
+    .side-stage {
+      display: grid;
+      gap: 12px;
+      align-content: start;
     }
     .panel {
       background: var(--panel);
@@ -156,7 +160,7 @@
     .network {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr) minmax(0, 1fr);
-      gap: 20px;
+      gap: 16px;
       align-items: stretch;
       min-height: 0;
       overflow: visible;
@@ -452,6 +456,33 @@
       gap: 12px;
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+    .control-tabs {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+    .control-tab-btn {
+      width: auto;
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .control-tab-btn.active {
+      background: var(--text);
+      color: #fff;
+      border-color: var(--text);
+    }
+    .control-panel {
+      display: none;
+    }
+    .control-panel.active {
+      display: grid;
+      gap: 0.75rem;
+    }
     label {
       display: block;
       font-size: 13px;
@@ -548,9 +579,9 @@
     }
     .response-layout {
       display: grid;
-      gap: 16px;
+      gap: 10px;
       grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-      align-items: start;
+      align-items: stretch;
     }
     .response-summary {
       min-height: 0;
@@ -676,10 +707,13 @@
       .page {
         height: auto;
         min-height: 100dvh;
+        grid-template-columns: 1fr;
         grid-template-rows: none;
+        padding: 10px;
         overflow: visible;
       }
-      .stage {
+      .main-stage,
+      .side-stage {
         overflow: visible;
         padding-right: 0;
       }
@@ -697,7 +731,10 @@
       .form-grid, .card-grid, .metric-row, .action-row {
         grid-template-columns: 1fr;
       }
-      .light-actions, .pane-tabs, .connection-summary {
+      .page {
+        padding: 8px;
+      }
+      .light-actions, .pane-tabs, .connection-summary, .control-tabs {
         flex-direction: column;
         align-items: stretch;
         grid-template-columns: 1fr;
@@ -710,49 +747,7 @@
 </head>
 <body>
   <div class="page">
-    <div class="stage stage-top">
-      <section class="panel connection-panel">
-        <div class="connection-summary">
-          <div class="connection-summary-main">
-            <h2>接続設定</h2>
-            <div class="summary-line" id="connectionSummaryText">未接続です。接続先を設定してください。</div>
-          </div>
-          <div class="connection-summary-actions">
-            <button id="toggleConnectionEditorBtn" class="ghost compact-btn">接続設定を開く</button>
-            <button id="disconnectBtn" class="ghost compact-btn">片方向を解除</button>
-            <button id="disconnectMutualBtn" class="ghost compact-btn">相互解除</button>
-          </div>
-        </div>
-        <details class="connection-editor" id="connectionEditor" open>
-          <summary>接続先を編集する</summary>
-          <div class="connection-editor-body">
-            <p class="helper">相手ノードの情報を入れて接続します。相互登録を使うと、相手側の登録 API まで自動で呼びます。</p>
-            <div class="form-grid">
-              <div>
-                <label for="remoteName">Remote Name</label>
-                <input id="remoteName" value="{{ default_remote_name }}">
-              </div>
-              <div>
-                <label for="remoteBaseUrl">Remote Base URL</label>
-                <input id="remoteBaseUrl" value="{{ default_remote_base_url }}">
-              </div>
-              <div>
-                <label for="target">Target</label>
-                <select id="target">
-                  <option value="all" selected>all</option>
-                  <option value="rpc">rpc</option>
-                  <option value="pubsub">pubsub</option>
-                </select>
-              </div>
-            </div>
-            <div class="action-row">
-              <button id="connectBtn">片方向で接続する</button>
-              <button id="connectMutualBtn" class="alt">相互接続する</button>
-            </div>
-          </div>
-        </details>
-      </section>
-
+    <main class="main-stage">
       <section class="network">
         <section class="panel node-pane">
           <div class="toast-stack" id="localToastStack"></div>
@@ -883,15 +878,56 @@
           </div>
         </section>
       </section>
+    </main>
 
-    </div>
+    <aside class="side-stage">
+      <section class="panel connection-panel">
+        <div class="connection-summary">
+          <div class="connection-summary-main">
+            <h2>接続設定</h2>
+            <div class="summary-line" id="connectionSummaryText">未接続です。接続先を設定してください。</div>
+          </div>
+          <div class="connection-summary-actions">
+            <button id="toggleConnectionEditorBtn" class="ghost compact-btn">接続設定を開く</button>
+            <button id="disconnectBtn" class="ghost compact-btn">片方向を解除</button>
+            <button id="disconnectMutualBtn" class="ghost compact-btn">相互解除</button>
+          </div>
+        </div>
+        <details class="connection-editor" id="connectionEditor" open>
+          <summary>接続先を編集する</summary>
+          <div class="connection-editor-body">
+            <p class="helper">相手ノードの情報を入れて接続します。相互登録を使うと、相手側の登録 API まで自動で呼びます。</p>
+            <div class="form-grid">
+              <div>
+                <label for="remoteName">Remote Name</label>
+                <input id="remoteName" value="{{ default_remote_name }}">
+              </div>
+              <div>
+                <label for="remoteBaseUrl">Remote Base URL</label>
+                <input id="remoteBaseUrl" value="{{ default_remote_base_url }}">
+              </div>
+              <div>
+                <label for="target">Target</label>
+                <select id="target">
+                  <option value="all" selected>all</option>
+                  <option value="rpc">rpc</option>
+                  <option value="pubsub">pubsub</option>
+                </select>
+              </div>
+            </div>
+            <div class="action-row">
+              <button id="connectBtn">片方向で接続する</button>
+              <button id="connectMutualBtn" class="alt">相互接続する</button>
+            </div>
+          </div>
+        </details>
+      </section>
 
-    <div class="stage stage-bottom">
       <section class="panel">
-        <div class="widget-header">
+        <div class="widget-header" style="margin-bottom: 10px;">
           <div>
-            <h2>Step 2. 操作パネル</h2>
-            <div class="tiny">接続完了後に主要操作だけを表示します。高度な method 実行は折りたたみの中に置きます。</div>
+            <h2>操作</h2>
+            <div class="tiny">右で接続と操作、左で結果を確認します。</div>
           </div>
           <div class="status-inline" id="operationStatus"></div>
         </div>
@@ -900,8 +936,14 @@
           <div class="tiny">まず上段の接続設定で片方向または相互接続を実行してください。</div>
         </div>
         <div class="controls hidden" id="controlsPanel">
-          <div class="card-grid">
-            <section class="control-card primary">
+          <section class="control-card primary">
+            <div class="control-tabs">
+              <button class="control-tab-btn active" data-control-tab="job">Job</button>
+              <button class="control-tab-btn" data-control-tab="alert">Alert</button>
+              <button class="control-tab-btn" data-control-tab="pubsub">PubSub</button>
+            </div>
+
+            <div class="control-panel active" data-control-panel="job">
               <h3>Job を相手サーバへ送る</h3>
               <div class="compact-form">
                 <label for="jobMessage">Job 内容</label>
@@ -911,8 +953,9 @@
               <div class="light-actions">
                 <button id="listJobsBtn" class="text-action">相手 Job 一覧を再取得</button>
               </div>
-            </section>
-            <section class="control-card primary">
+            </div>
+
+            <div class="control-panel" data-control-panel="alert">
               <h3>Alert を相手 callback へ送る</h3>
               <div class="compact-form">
                 <label for="alertMessage">Alert 内容</label>
@@ -922,8 +965,9 @@
               <div class="light-actions">
                 <button id="listAlertsBtn" class="text-action">相手 Alert 一覧を再取得</button>
               </div>
-            </section>
-            <section class="control-card primary">
+            </div>
+
+            <div class="control-panel" data-control-panel="pubsub">
               <h3>PubSub Event を配信する</h3>
               <div class="compact-form">
                 <label for="topic">Topic</label>
@@ -935,8 +979,8 @@
               <div class="light-actions">
                 <button id="refreshStateBtn" class="text-action">左右の状態を再取得</button>
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
 
           <details class="control-card">
             <summary>Advanced: RPC Method Explorer</summary>
@@ -967,21 +1011,22 @@
         </div>
       </section>
 
-      <section class="panel response-layout">
-        <div class="response-summary">
-          <div class="response-title">
-            <h2>最新の操作結果</h2>
-            <button id="copyResultBtn" class="ghost">レスポンスをコピー</button>
-          </div>
-          <div class="response-headline" id="resultHeadline">まだ操作していません。</div>
-          <div class="tiny" id="resultMeta">ここには「何を実行して、どこに反映されたか」を短く表示します。</div>
+    </aside>
+
+    <section class="panel response-layout result-stage">
+      <div class="response-summary">
+        <div class="response-title">
+          <h2>最新の操作結果</h2>
+          <button id="copyResultBtn" class="ghost">レスポンスをコピー</button>
         </div>
-        <details>
-          <summary>JSON レスポンス詳細</summary>
-          <pre id="resultBox">ここに詳細 JSON を表示します。</pre>
-        </details>
-      </section>
-    </div>
+        <div class="response-headline" id="resultHeadline">まだ操作していません。</div>
+        <div class="tiny" id="resultMeta">ここには「何を実行して、どこに反映されたか」を短く表示します。</div>
+      </div>
+      <details>
+        <summary>JSON レスポンス詳細</summary>
+        <pre id="resultBox">ここに詳細 JSON を表示します。</pre>
+      </details>
+    </section>
   </div>
 
   <script>
@@ -1386,6 +1431,23 @@
       });
     }
 
+    function activateControlTab(tabName) {
+      document.querySelectorAll(".control-tab-btn").forEach((button) => {
+        button.classList.toggle("active", button.dataset.controlTab === tabName);
+      });
+      document.querySelectorAll(".control-panel").forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.controlPanel === tabName);
+      });
+    }
+
+    function setupControlTabs() {
+      document.querySelectorAll(".control-tab-btn").forEach((button) => {
+        button.addEventListener("click", () => {
+          activateControlTab(button.dataset.controlTab);
+        });
+      });
+    }
+
     async function refreshBoth() {
       await refreshLocal();
       try {
@@ -1582,6 +1644,7 @@
     };
 
     setupTabs();
+    setupControlTabs();
     updateRpcMethodOptions();
     refreshBoth();
   </script>
