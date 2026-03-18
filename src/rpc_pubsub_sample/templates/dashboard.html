@@ -4,20 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ node_name }} Dashboard</title>
+  <link rel="icon" href="data:,">
   <style>
     :root {
-      --bg: #f4efe7;
-      --panel: rgba(255, 252, 247, 0.92);
-      --line: #d7cab7;
-      --text: #201913;
-      --muted: #6f665d;
+      --bg: #edf1f5;
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --line: #d6dde6;
+      --text: #17202a;
+      --muted: #617181;
       --rpc: #0f766e;
       --pubsub: #2563eb;
-      --accent: #c2410c;
+      --accent: #d97706;
       --ok: #15803d;
       --warn: #b45309;
       --danger: #b91c1c;
-      --shadow: 0 18px 40px rgba(32, 25, 19, 0.08);
+      --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
     }
     * { box-sizing: border-box; }
     body {
@@ -26,18 +28,19 @@
       font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(15, 118, 110, 0.14), transparent 24rem),
-        radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 24rem),
-        linear-gradient(180deg, #f8f5ef 0%, #f1eadf 100%);
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 20rem),
+        radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 20rem),
+        linear-gradient(180deg, #f7f9fc 0%, #eef3f7 100%);
     }
     .page {
-      max-width: 1440px;
+      width: min(100%, 96rem);
       margin: 0 auto;
       padding: 24px;
       display: grid;
-      gap: 18px;
-      min-height: 100vh;
-      height: 100vh;
+      gap: 20px;
+      min-height: 100dvh;
+      height: 100dvh;
+      grid-template-rows: minmax(0, 1.2fr) minmax(0, 0.9fr);
       overflow: hidden;
     }
     .stage {
@@ -48,72 +51,79 @@
     }
     .stage-top {
       display: grid;
-      gap: 18px;
-      grid-template-rows: auto auto minmax(0, 1fr);
+      gap: 20px;
+      grid-template-rows: auto minmax(0, 1fr);
     }
     .stage-bottom {
       display: grid;
-      gap: 18px;
-      grid-template-rows: minmax(0, 1fr) auto;
+      gap: 20px;
+      grid-template-rows: auto minmax(0, 1fr);
     }
     .panel {
       background: var(--panel);
-      border: 1px solid rgba(215, 202, 183, 0.9);
+      border: 1px solid var(--line);
       border-radius: 24px;
-      padding: 20px;
+      padding: 22px;
       box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
     }
-    .hero {
+    .connection-panel {
       display: grid;
-      gap: 16px;
-      grid-template-columns: 1.3fr 1fr;
-      align-items: start;
+      gap: 14px;
     }
-    .hero h1, h2, h3, h4 {
+    .connection-summary {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+    }
+    .connection-summary-main {
+      display: grid;
+      gap: 6px;
+    }
+    .connection-summary-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .summary-line {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .compact-btn {
+      width: auto;
+      padding: 0.75rem 1rem;
+    }
+    .connection-editor[open] {
+      margin-top: 2px;
+    }
+    .connection-editor {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel-soft);
+      overflow: hidden;
+    }
+    .connection-editor summary {
+      list-style: none;
+      cursor: pointer;
+      font-weight: 700;
+      padding: 14px 16px;
+      background: transparent;
+      color: var(--text);
+    }
+    .connection-editor summary::-webkit-details-marker {
+      display: none;
+    }
+    .connection-editor-body {
+      padding: 0 16px 16px;
+      display: grid;
+      gap: 12px;
+    }
+    h1, h2, h3, h4 {
       margin: 0;
     }
-    .hero p, .helper, .muted {
+    .helper, .muted {
       color: var(--muted);
-    }
-    .step-list {
-      display: grid;
-      gap: 10px;
-      margin-top: 14px;
-    }
-    .step {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      padding: 12px 14px;
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.72);
-      border: 1px solid var(--line);
-    }
-    .step-num {
-      flex: 0 0 auto;
-      width: 28px;
-      height: 28px;
-      border-radius: 999px;
-      display: grid;
-      place-items: center;
-      color: #fff;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--rpc), var(--pubsub));
-    }
-    .hero-status {
-      display: grid;
-      gap: 12px;
-    }
-    .status-card {
-      padding: 14px 16px;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.72);
-      border: 1px solid var(--line);
-    }
-    .status-card strong {
-      display: block;
-      margin-bottom: 6px;
     }
     .status-inline {
       display: flex;
@@ -127,7 +137,7 @@
       padding: 6px 10px;
       border-radius: 999px;
       border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.86);
+      background: #fff;
       font-size: 12px;
     }
     .chip.ok {
@@ -137,7 +147,7 @@
     }
     .chip.off {
       color: var(--muted);
-      background: rgba(241, 245, 249, 0.9);
+      background: #f1f5f9;
     }
     .chip.warn {
       color: var(--warn);
@@ -145,16 +155,18 @@
     }
     .network {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 240px minmax(0, 1fr);
-      gap: 18px;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr) minmax(0, 1fr);
+      gap: 20px;
       align-items: stretch;
       min-height: 0;
+      overflow: visible;
     }
     .node-pane {
       position: relative;
-      min-height: 620px;
+      min-height: 0;
       display: grid;
-      gap: 14px;
+      gap: 12px;
+      grid-template-rows: auto auto minmax(0, 1fr);
     }
     .node-header {
       display: flex;
@@ -197,21 +209,35 @@
       font-weight: 700;
       border: 2px solid #fff;
     }
-    .metric-row {
+    .node-overview {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
+      gap: 0.75rem;
+      padding-bottom: 0.9rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .metric-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: baseline;
     }
     .metric {
-      padding: 12px;
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.72);
-      border: 1px solid var(--line);
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.45rem;
+      padding: 0;
+      border: none;
+      background: transparent;
+    }
+    .metric-label {
+      font-size: 0.75rem;
+      color: var(--muted);
     }
     .metric strong {
-      display: block;
-      font-size: 22px;
-      margin-top: 6px;
+      display: inline;
+      font-size: 1.4rem;
+      line-height: 1;
+      margin: 0;
     }
     .stack {
       display: grid;
@@ -219,22 +245,43 @@
       min-height: 0;
     }
     .widget {
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 14px;
-      background: rgba(255, 255, 255, 0.78);
+      border: none;
+      border-radius: 0;
+      padding: 0;
+      background: transparent;
+      min-height: 0;
+    }
+    .history-widget {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+    .compact-status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .connection-inline {
+      color: var(--muted);
+      font-size: 0.82rem;
+      overflow-wrap: anywhere;
+    }
+    .section-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--muted);
     }
     .widget-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
     .card-list {
       display: grid;
       gap: 10px;
-      max-height: 220px;
+      max-height: 100%;
       overflow: auto;
       padding-right: 4px;
     }
@@ -243,7 +290,7 @@
       border-radius: 16px;
       padding: 12px;
       background: #fff;
-      box-shadow: 0 8px 18px rgba(32, 25, 19, 0.04);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
       animation: pop-in 240ms ease-out;
     }
     .item-card strong {
@@ -268,7 +315,7 @@
     .timeline {
       display: grid;
       gap: 10px;
-      max-height: 220px;
+      max-height: 100%;
       overflow: auto;
       padding-right: 4px;
     }
@@ -301,18 +348,18 @@
     .pipes {
       position: relative;
       display: grid;
-      gap: 18px;
+      gap: 20px;
       align-content: center;
       justify-items: stretch;
     }
     .pipe-card {
       position: relative;
-      padding: 14px 12px;
+      padding: 18px 16px;
       border-radius: 22px;
       border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.76);
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
       overflow: hidden;
-      min-height: 150px;
+      min-height: 0;
     }
     .pipe-card h3 {
       margin-bottom: 10px;
@@ -390,12 +437,10 @@
     }
     .controls {
       display: grid;
-      gap: 18px;
+      gap: 12px;
     }
-    .controls.locked {
-      opacity: 0.5;
-      pointer-events: none;
-      filter: saturate(0.7);
+    .controls.hidden {
+      display: none;
     }
     .form-grid {
       display: grid;
@@ -404,7 +449,7 @@
     }
     .card-grid {
       display: grid;
-      gap: 14px;
+      gap: 12px;
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     label {
@@ -445,31 +490,84 @@
     }
     .control-card {
       border: 1px solid var(--line);
-      border-radius: 20px;
-      padding: 16px;
-      background: rgba(255, 255, 255, 0.78);
+      border-radius: 16px;
+      padding: 14px;
+      background: var(--panel-soft);
       display: grid;
-      gap: 12px;
+      gap: 8px;
+    }
+    .control-card.primary {
+      background: #fff;
+      box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.08);
     }
     .action-row {
       display: grid;
       gap: 10px;
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    .light-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .text-action {
+      border: none;
+      background: none;
+      color: var(--rpc);
+      padding: 0;
+      width: auto;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .locked-panel {
+      border: 1px dashed var(--line);
+      border-radius: 16px;
+      background: var(--panel-soft);
+      padding: 16px;
+      display: grid;
+      gap: 6px;
+      place-items: center;
+      text-align: center;
+      min-height: 0;
+    }
+    .locked-panel strong {
+      font-size: 16px;
+    }
+    .compact-form {
+      display: grid;
+      gap: 8px;
+    }
+    .action-main {
+      width: auto;
+      min-width: 8rem;
+    }
+    .control-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+    }
     .response-layout {
       display: grid;
-      gap: 14px;
-      grid-template-columns: 1.1fr 1fr;
+      gap: 16px;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
       align-items: start;
     }
     .response-summary {
-      min-height: 160px;
+      min-height: 0;
       border-radius: 18px;
       border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.8);
-      padding: 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      padding: 20px;
       display: grid;
-      gap: 10px;
+      gap: 12px;
+    }
+    .response-summary h2 {
+      font-size: 24px;
+    }
+    .response-headline {
+      font-size: 28px;
+      line-height: 1.3;
+      font-weight: 800;
     }
     .response-title {
       display: flex;
@@ -525,6 +623,33 @@
       font-size: 12px;
       color: var(--muted);
     }
+    .pane-tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .tab-btn {
+      width: auto;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .tab-btn.active {
+      background: var(--text);
+      color: #fff;
+      border-color: var(--text);
+    }
+    .tab-panel {
+      display: none;
+    }
+    .tab-panel.active {
+      display: block;
+      min-height: 0;
+    }
     @keyframes pulse-forward {
       0% { left: 0; opacity: 0; }
       10% { opacity: 1; }
@@ -550,14 +675,15 @@
     @media (max-width: 1180px) {
       .page {
         height: auto;
-        min-height: 100vh;
+        min-height: 100dvh;
+        grid-template-rows: none;
         overflow: visible;
       }
       .stage {
         overflow: visible;
         padding-right: 0;
       }
-      .network, .hero, .response-layout {
+      .network, .response-layout {
         grid-template-columns: 1fr;
       }
       .pipes {
@@ -571,90 +697,60 @@
       .form-grid, .card-grid, .metric-row, .action-row {
         grid-template-columns: 1fr;
       }
+      .light-actions, .pane-tabs, .connection-summary {
+        flex-direction: column;
+        align-items: stretch;
+        grid-template-columns: 1fr;
+      }
+      .connection-summary-actions {
+        justify-content: stretch;
+      }
     }
   </style>
 </head>
 <body>
   <div class="page">
     <div class="stage stage-top">
-      <section class="panel hero">
-        <div>
-          <h1>{{ node_name }} Learning Dashboard</h1>
-          <p>この画面は、WebSocket RPC と PubSub を「どこが繋がり、どちらへ流れ、何が相手に残るのか」で理解するための学習用 UI です。生の JSON を読むのではなく、接続パイプ、ジョブカード、アラートベル、イベントタイムラインで状態を追います。</p>
-          <div class="step-list">
-            <div class="step">
-              <div class="step-num">1</div>
+      <section class="panel connection-panel">
+        <div class="connection-summary">
+          <div class="connection-summary-main">
+            <h2>接続設定</h2>
+            <div class="summary-line" id="connectionSummaryText">未接続です。接続先を設定してください。</div>
+          </div>
+          <div class="connection-summary-actions">
+            <button id="toggleConnectionEditorBtn" class="ghost compact-btn">接続設定を開く</button>
+            <button id="disconnectBtn" class="ghost compact-btn">片方向を解除</button>
+            <button id="disconnectMutualBtn" class="ghost compact-btn">相互解除</button>
+          </div>
+        </div>
+        <details class="connection-editor" id="connectionEditor" open>
+          <summary>接続先を編集する</summary>
+          <div class="connection-editor-body">
+            <p class="helper">相手ノードの情報を入れて接続します。相互登録を使うと、相手側の登録 API まで自動で呼びます。</p>
+            <div class="form-grid">
               <div>
-                <strong>まず接続する</strong>
-                <div class="tiny">相手ノードの URL を入れて RPC と PubSub を開通させます。中央の線が緑や青に変われば経路が使えます。</div>
+                <label for="remoteName">Remote Name</label>
+                <input id="remoteName" value="{{ default_remote_name }}">
+              </div>
+              <div>
+                <label for="remoteBaseUrl">Remote Base URL</label>
+                <input id="remoteBaseUrl" value="{{ default_remote_base_url }}">
+              </div>
+              <div>
+                <label for="target">Target</label>
+                <select id="target">
+                  <option value="all" selected>all</option>
+                  <option value="rpc">rpc</option>
+                  <option value="pubsub">pubsub</option>
+                </select>
               </div>
             </div>
-            <div class="step">
-              <div class="step-num">2</div>
-              <div>
-                <strong>次に機能を使う</strong>
-                <div class="tiny">ジョブ送信は相手サーバの仕事キューに入り、アラート送信は相手 callback 側の通知ベルに積まれます。</div>
-              </div>
-            </div>
-            <div class="step">
-              <div class="step-num">3</div>
-              <div>
-                <strong>最後に流れを見る</strong>
-                <div class="tiny">PubSub はイベントタイムラインに流れ、RPC は中央のパイプ上をパルスが往復します。</div>
-              </div>
+            <div class="action-row">
+              <button id="connectBtn">片方向で接続する</button>
+              <button id="connectMutualBtn" class="alt">相互接続する</button>
             </div>
           </div>
-        </div>
-        <div class="hero-status">
-          <div class="status-card">
-            <strong>現在の画面</strong>
-            <div class="tiny">Local: {{ local_base_url }}</div>
-            <div class="tiny"><a href="/docs">/docs</a> と <a href="/">/</a> も利用できます。</div>
-          </div>
-          <div class="status-card">
-            <strong>接続フェーズ</strong>
-            <div class="status-inline" id="phaseChips">
-              <span class="chip off">未取得</span>
-            </div>
-          </div>
-          <div class="status-card">
-            <strong>このサンプルで見せること</strong>
-            <div class="legend">
-              <span><i style="background: var(--rpc);"></i>RPC で相手サーバのジョブを操作</span>
-              <span><i style="background: var(--accent);"></i>callback RPC で相手へアラート通知</span>
-              <span><i style="background: var(--pubsub);"></i>PubSub でイベントを全体配信</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Step 1. 接続設定</h2>
-        <p class="helper">相手ノードの情報を入れて接続します。相互登録を使うと、相手側の登録 API まで自動で呼びます。</p>
-        <div class="form-grid">
-          <div>
-            <label for="remoteName">Remote Name</label>
-            <input id="remoteName" value="{{ default_remote_name }}">
-          </div>
-          <div>
-            <label for="remoteBaseUrl">Remote Base URL</label>
-            <input id="remoteBaseUrl" value="{{ default_remote_base_url }}">
-          </div>
-          <div>
-            <label for="target">Target</label>
-            <select id="target">
-              <option value="all" selected>all</option>
-              <option value="rpc">rpc</option>
-              <option value="pubsub">pubsub</option>
-            </select>
-          </div>
-        </div>
-        <div class="action-row" style="margin-top: 14px;">
-          <button id="connectBtn">片方向で接続する</button>
-          <button id="connectMutualBtn" class="alt">相互接続する</button>
-          <button id="disconnectBtn" class="ghost">片方向を解除する</button>
-          <button id="disconnectMutualBtn" class="ghost">相互解除する</button>
-        </div>
+        </details>
       </section>
 
       <section class="network">
@@ -670,47 +766,43 @@
               <span class="badge" id="localAlertBadge">0</span>
             </div>
           </div>
-          <div class="metric-row">
-            <div class="metric">
-              <div class="tiny">RPC</div>
-              <strong id="localRpcMetric">-</strong>
-            </div>
-            <div class="metric">
-              <div class="tiny">PubSub</div>
-              <strong id="localPubsubMetric">-</strong>
-            </div>
-            <div class="metric">
-              <div class="tiny">Incoming Channel</div>
-              <strong id="localChannelMetric">-</strong>
-            </div>
-          </div>
-          <div class="widget">
-            <div class="widget-header">
-              <h3>Local Status</h3>
-              <div class="status-inline" id="localStatusChips"></div>
-            </div>
-            <div class="tiny" id="localConnectionText">未取得</div>
-          </div>
-          <div class="stack">
-            <div class="widget">
-              <div class="widget-header">
-                <h3>ジョブボード</h3>
-                <span class="tiny" id="localJobCount">0 件</span>
+          <div class="node-overview">
+            <div class="metric-row">
+              <div class="metric">
+                <span class="metric-label">RPC</span>
+                <strong id="localRpcMetric">-</strong>
               </div>
+              <div class="metric">
+                <span class="metric-label">PubSub</span>
+                <strong id="localPubsubMetric">-</strong>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Incoming</span>
+                <strong id="localChannelMetric">-</strong>
+              </div>
+            </div>
+            <div class="compact-status">
+              <div class="status-inline" id="localStatusChips"></div>
+              <div class="connection-inline" id="localConnectionText">未取得</div>
+            </div>
+          </div>
+          <div class="widget history-widget">
+            <div class="widget-header">
+              <div class="section-title">Local の変化</div>
+              <span class="tiny">見たい履歴だけを表示</span>
+            </div>
+            <div class="pane-tabs" data-tab-group="local">
+              <button class="tab-btn active" data-tab-group="local" data-tab-target="jobs">Job <span id="localJobCount">0 件</span></button>
+              <button class="tab-btn" data-tab-group="local" data-tab-target="alerts">Alert <span id="localAlertCount">0 件</span></button>
+              <button class="tab-btn" data-tab-group="local" data-tab-target="events">PubSub <span id="localEventCount">0 件</span></button>
+            </div>
+            <div class="tab-panel active" data-tab-group="local" data-tab-name="jobs">
               <div class="card-list" id="localJobs"></div>
             </div>
-            <div class="widget">
-              <div class="widget-header">
-                <h3>アラート履歴</h3>
-                <span class="tiny" id="localAlertCount">0 件</span>
-              </div>
+            <div class="tab-panel" data-tab-group="local" data-tab-name="alerts">
               <div class="card-list" id="localAlerts"></div>
             </div>
-            <div class="widget">
-              <div class="widget-header">
-                <h3>PubSub タイムライン</h3>
-                <span class="tiny" id="localEventCount">0 件</span>
-              </div>
+            <div class="tab-panel" data-tab-group="local" data-tab-name="events">
               <div class="timeline" id="localEvents"></div>
             </div>
           </div>
@@ -749,52 +841,49 @@
               <span class="badge" id="remoteAlertBadge">0</span>
             </div>
           </div>
-          <div class="metric-row">
-            <div class="metric">
-              <div class="tiny">RPC</div>
-              <strong id="remoteRpcMetric">-</strong>
-            </div>
-            <div class="metric">
-              <div class="tiny">PubSub</div>
-              <strong id="remotePubsubMetric">-</strong>
-            </div>
-            <div class="metric">
-              <div class="tiny">Incoming Channel</div>
-              <strong id="remoteChannelMetric">-</strong>
-            </div>
-          </div>
-          <div class="widget">
-            <div class="widget-header">
-              <h3>Remote Status</h3>
-              <div class="status-inline" id="remoteStatusChips"></div>
-            </div>
-            <div class="tiny" id="remoteConnectionText">未取得</div>
-          </div>
-          <div class="stack">
-            <div class="widget">
-              <div class="widget-header">
-                <h3>ジョブボード</h3>
-                <span class="tiny" id="remoteJobCount">0 件</span>
+          <div class="node-overview">
+            <div class="metric-row">
+              <div class="metric">
+                <span class="metric-label">RPC</span>
+                <strong id="remoteRpcMetric">-</strong>
               </div>
+              <div class="metric">
+                <span class="metric-label">PubSub</span>
+                <strong id="remotePubsubMetric">-</strong>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Incoming</span>
+                <strong id="remoteChannelMetric">-</strong>
+              </div>
+            </div>
+            <div class="compact-status">
+              <div class="status-inline" id="remoteStatusChips"></div>
+              <div class="connection-inline" id="remoteConnectionText">未取得</div>
+            </div>
+          </div>
+          <div class="widget history-widget">
+            <div class="widget-header">
+              <div class="section-title">Remote の変化</div>
+              <span class="tiny">見たい履歴だけを表示</span>
+            </div>
+            <div class="pane-tabs" data-tab-group="remote">
+              <button class="tab-btn active" data-tab-group="remote" data-tab-target="jobs">Job <span id="remoteJobCount">0 件</span></button>
+              <button class="tab-btn" data-tab-group="remote" data-tab-target="alerts">Alert <span id="remoteAlertCount">0 件</span></button>
+              <button class="tab-btn" data-tab-group="remote" data-tab-target="events">PubSub <span id="remoteEventCount">0 件</span></button>
+            </div>
+            <div class="tab-panel active" data-tab-group="remote" data-tab-name="jobs">
               <div class="card-list" id="remoteJobs"></div>
             </div>
-            <div class="widget">
-              <div class="widget-header">
-                <h3>アラート履歴</h3>
-                <span class="tiny" id="remoteAlertCount">0 件</span>
-              </div>
+            <div class="tab-panel" data-tab-group="remote" data-tab-name="alerts">
               <div class="card-list" id="remoteAlerts"></div>
             </div>
-            <div class="widget">
-              <div class="widget-header">
-                <h3>PubSub タイムライン</h3>
-                <span class="tiny" id="remoteEventCount">0 件</span>
-              </div>
+            <div class="tab-panel" data-tab-group="remote" data-tab-name="events">
               <div class="timeline" id="remoteEvents"></div>
             </div>
           </div>
         </section>
       </section>
+
     </div>
 
     <div class="stage stage-bottom">
@@ -802,58 +891,57 @@
         <div class="widget-header">
           <div>
             <h2>Step 2. 操作パネル</h2>
-            <div class="tiny">接続ができるまで操作はロックされます。接続後にジョブ、アラート、PubSub を試してください。</div>
+            <div class="tiny">接続完了後に主要操作だけを表示します。高度な method 実行は折りたたみの中に置きます。</div>
           </div>
           <div class="status-inline" id="operationStatus"></div>
         </div>
-        <div class="controls locked" id="controlsPanel">
+        <div class="locked-panel" id="controlsLockedPanel">
+          <strong>接続が完了すると操作を表示します</strong>
+          <div class="tiny">まず上段の接続設定で片方向または相互接続を実行してください。</div>
+        </div>
+        <div class="controls hidden" id="controlsPanel">
           <div class="card-grid">
-            <section class="control-card">
+            <section class="control-card primary">
               <h3>Job を相手サーバへ送る</h3>
-              <div class="tiny">`submit_job` は相手サーバのジョブボードにカードを追加します。</div>
-              <div>
+              <div class="compact-form">
                 <label for="jobMessage">Job 内容</label>
                 <input id="jobMessage" value="在庫同期ジョブを実行してください">
               </div>
-              <div class="action-row">
-                <button id="submitJobBtn">Job を送る</button>
-                <button id="listJobsBtn" class="ghost">相手 Job 一覧を取得</button>
+              <button id="submitJobBtn" class="action-main">Job を送る</button>
+              <div class="light-actions">
+                <button id="listJobsBtn" class="text-action">相手 Job 一覧を再取得</button>
               </div>
             </section>
-            <section class="control-card">
+            <section class="control-card primary">
               <h3>Alert を相手 callback へ送る</h3>
-              <div class="tiny">`push_alert` は相手 callback 側のベルとアラート履歴を増やします。</div>
-              <div>
+              <div class="compact-form">
                 <label for="alertMessage">Alert 内容</label>
                 <input id="alertMessage" value="ジョブ投入を受け付けました">
               </div>
-              <div class="action-row">
-                <button id="pushAlertBtn" class="alt">Alert を送る</button>
-                <button id="listAlertsBtn" class="ghost">相手 Alert 一覧を取得</button>
+              <button id="pushAlertBtn" class="alt action-main">Alert を送る</button>
+              <div class="light-actions">
+                <button id="listAlertsBtn" class="text-action">相手 Alert 一覧を再取得</button>
               </div>
             </section>
-            <section class="control-card">
+            <section class="control-card primary">
               <h3>PubSub Event を配信する</h3>
-              <div class="tiny">Publish したイベントは購読中ノードのタイムラインに流れます。</div>
-              <div>
+              <div class="compact-form">
                 <label for="topic">Topic</label>
                 <input id="topic" value="events">
-              </div>
-              <div>
                 <label for="pubsubMessage">Event 内容</label>
                 <input id="pubsubMessage" value="配送完了イベントを配信しました">
               </div>
-              <div class="action-row">
-                <button id="publishBtn" class="sub">Publish する</button>
-                <button id="refreshStateBtn" class="ghost">状態を再取得</button>
+              <button id="publishBtn" class="sub action-main">Publish する</button>
+              <div class="light-actions">
+                <button id="refreshStateBtn" class="text-action">左右の状態を再取得</button>
               </div>
             </section>
           </div>
 
-          <section class="control-card">
-            <h3>RPC Method Explorer</h3>
-            <div class="tiny">公開 method を切り替えると、その method に対応した個別 HTTP エンドポイントを呼びます。汎用 `invoke` は使いません。</div>
-            <div class="form-grid">
+          <details class="control-card">
+            <summary>Advanced: RPC Method Explorer</summary>
+            <div class="control-subtitle" style="margin-top: 6px;">公開 method を個別 endpoint 経由で試したいときだけ使います。</div>
+            <div class="form-grid" style="margin-top: 8px;">
               <div>
                 <label for="rpcTargetType">RPC 公開種別</label>
                 <select id="rpcTargetType">
@@ -870,12 +958,12 @@
                 <input id="rpcMessage" value="メソッド探索用メッセージ">
               </div>
             </div>
-            <div class="tiny" id="rpcMethodSummary">ここに選択中 method の説明を表示します。</div>
-            <div class="action-row">
+            <div class="control-subtitle" id="rpcMethodSummary" style="margin-top: 8px;">ここに選択中 method の説明を表示します。</div>
+            <div class="action-row" style="margin-top: 8px;">
               <button id="rpcInvokeBtn">選択した method を実行</button>
               <button id="rpcMethodsBtn" class="ghost">公開 method 一覧を表示</button>
             </div>
-          </section>
+          </details>
         </div>
       </section>
 
@@ -885,7 +973,7 @@
             <h2>最新の操作結果</h2>
             <button id="copyResultBtn" class="ghost">レスポンスをコピー</button>
           </div>
-          <div id="resultHeadline">まだ操作していません。</div>
+          <div class="response-headline" id="resultHeadline">まだ操作していません。</div>
           <div class="tiny" id="resultMeta">ここには「何を実行して、どこに反映されたか」を短く表示します。</div>
         </div>
         <details>
@@ -1053,29 +1141,56 @@
 
     function updatePhase(localSnapshot) {
       const phase = localSnapshot?.phase || {};
-      $("phaseChips").innerHTML = [
-        statusChip("接続開始", !!(localSnapshot && localSnapshot.health && localSnapshot.health.connection_target), "warn"),
-        statusChip("RPC 開通", !!phase.rpc_ready),
-        statusChip("PubSub 開通", !!phase.pubsub_ready),
-        statusChip("操作可能", !!phase.connected)
-      ].join("");
+      const health = localSnapshot?.health || {};
+      const connectionDefined = !!health.connection_target;
+      const registrationActive = !!health.rpc_registration_enabled || !!health.pubsub_registration_enabled;
+      const phaseChips = $("phaseChips");
+      if (phaseChips) {
+        phaseChips.innerHTML = [
+          statusChip("登録済み", registrationActive || connectionDefined, "warn"),
+          statusChip("RPC 開通", !!phase.rpc_ready),
+          statusChip("PubSub 開通", !!phase.pubsub_ready),
+          statusChip("操作表示", registrationActive || connectionDefined)
+        ].join("");
+      }
 
-      const ready = !!phase.connected;
+      const ready = registrationActive || connectionDefined;
       const fullyReady = !!phase.fully_ready;
-      $("controlsPanel").classList.toggle("locked", !ready);
+      $("controlsPanel").classList.toggle("hidden", !ready);
+      $("controlsLockedPanel").style.display = ready ? "none" : "grid";
       $("operationStatus").innerHTML = ready
         ? [
-            '<span class="chip ok">操作解放</span>',
+            '<span class="chip ok">操作表示中</span>',
             fullyReady ? '<span class="chip ok">RPC / PubSub 両方開通</span>' : '<span class="chip warn">部分接続</span>'
           ].join("")
-        : '<span class="chip off">接続待ち</span>';
+        : registrationActive || connectionDefined
+          ? '<span class="chip warn">接続待ち</span>'
+          : '<span class="chip off">未接続</span>';
+
+      const editor = $("connectionEditor");
+      if (connectionDefined && editor.open) {
+        editor.open = false;
+      }
+      if (!connectionDefined && !editor.open) {
+        editor.open = true;
+      }
+    }
+
+    function updateConnectionSummary(localSnapshot) {
+      const connection = localSnapshot?.health?.connection_target;
+      if (!connection) {
+        $("connectionSummaryText").textContent = "未接続です。接続先を設定してください。";
+        return;
+      }
+      $("connectionSummaryText").textContent =
+        `${connection.remote_name} に接続中 / RPC: ${connection.rpc_url || "-"} / PubSub: ${connection.pubsub_url || "-"}`;
     }
 
     function updatePipes() {
       const localHealth = uiState.local?.health || {};
       const remoteHealth = uiState.remote?.health || {};
       const rpcActive = !!localHealth.rpc_connected && !!remoteHealth.incoming_rpc_channels?.length;
-      const pubsubActive = !!localHealth.pubsub_connected;
+      const pubsubActive = !!localHealth.pubsub_connected && !!remoteHealth.pubsub_connected;
 
       const rpcPipe = $("rpcPipe");
       rpcPipe.className = `pipe-card ${rpcActive ? "active-rpc" : "inactive"}`;
@@ -1088,7 +1203,7 @@
       pubsubPipe.className = `pipe-card ${pubsubActive ? "active-pubsub" : "inactive"}`;
       $("pubsubPipeStatus").innerHTML = [
         statusChip("自ノード PubSub", !!localHealth.pubsub_connected),
-        statusChip("イベント購読", !!uiState.remote)
+        statusChip("相手 PubSub", !!remoteHealth.pubsub_connected)
       ].join("");
     }
 
@@ -1186,6 +1301,7 @@
       uiState.local = response.data;
       notifyNewAlerts("local", uiState.local);
       renderNode("local", uiState.local);
+      updateConnectionSummary(uiState.local);
       updatePhase(uiState.local);
       updatePipes();
       return response.data;
@@ -1253,6 +1369,23 @@
       $("rpcMethodSummary").textContent = `${targetType} / ${selected.name}: ${selected.summary} / 引数: ${params}`;
     }
 
+    function activateTab(group, tabName) {
+      document.querySelectorAll(`.tab-btn[data-tab-group="${group}"]`).forEach((button) => {
+        button.classList.toggle("active", button.dataset.tabTarget === tabName);
+      });
+      document.querySelectorAll(`.tab-panel[data-tab-group="${group}"]`).forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.tabName === tabName);
+      });
+    }
+
+    function setupTabs() {
+      document.querySelectorAll(".tab-btn").forEach((button) => {
+        button.addEventListener("click", () => {
+          activateTab(button.dataset.tabGroup, button.dataset.tabTarget);
+        });
+      });
+    }
+
     async function refreshBoth() {
       await refreshLocal();
       try {
@@ -1260,6 +1393,44 @@
       } catch (error) {
         // Remote が未起動でも local 描画は継続する。
       }
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function refreshUntilConnected(options = {}) {
+      const {
+        attempts = 10,
+        intervalMs = 500,
+      } = options;
+
+      for (let i = 0; i < attempts; i += 1) {
+        await refreshBoth();
+        const health = uiState.local?.health || {};
+        if (uiState.local?.phase?.connected || health.connection_target || health.rpc_registration_enabled || health.pubsub_registration_enabled) {
+          return true;
+        }
+        await sleep(intervalMs);
+      }
+      return false;
+    }
+
+    async function refreshUntilDisconnected(options = {}) {
+      const {
+        attempts = 10,
+        intervalMs = 400,
+      } = options;
+
+      for (let i = 0; i < attempts; i += 1) {
+        await refreshBoth();
+        const health = uiState.local?.health || {};
+        if (!health.connection_target && !health.rpc_registration_enabled && !health.pubsub_registration_enabled) {
+          return true;
+        }
+        await sleep(intervalMs);
+      }
+      return false;
     }
 
     $("connectBtn").onclick = async () => {
@@ -1271,7 +1442,10 @@
         pubsub_url: s.pubsub_url
       });
       summarizeResult("connect", result);
-      await refreshBoth();
+      const connected = await refreshUntilConnected();
+      if (!connected) {
+        updateResultSummary("接続登録は受け付けました", "接続完了待ちです。数秒後に再取得してください。");
+      }
     };
 
     $("connectMutualBtn").onclick = async () => {
@@ -1282,14 +1456,20 @@
         remote_base_url: s.remote_base_url
       });
       summarizeResult("connect", result);
-      await refreshBoth();
+      const connected = await refreshUntilConnected({ attempts: 12, intervalMs: 600 });
+      if (!connected) {
+        updateResultSummary("相互接続登録は受け付けました", "接続完了待ちです。数秒後に再取得してください。");
+      }
     };
 
     $("disconnectBtn").onclick = async () => {
       const s = settings();
       const result = await callJson("/registration/disconnect", { target: s.target });
       summarizeResult("disconnect", result);
-      await refreshBoth();
+      const disconnected = await refreshUntilDisconnected();
+      if (!disconnected) {
+        updateResultSummary("解除要求は送信しました", "接続解除の反映待ちです。数秒後に再取得してください。");
+      }
     };
 
     $("disconnectMutualBtn").onclick = async () => {
@@ -1299,7 +1479,10 @@
         remote_base_url: s.remote_base_url
       });
       summarizeResult("disconnect", result);
-      await refreshBoth();
+      const disconnected = await refreshUntilDisconnected({ attempts: 12, intervalMs: 500 });
+      if (!disconnected) {
+        updateResultSummary("相互解除要求は送信しました", "接続解除の反映待ちです。数秒後に再取得してください。");
+      }
     };
 
     $("submitJobBtn").onclick = async () => {
@@ -1394,7 +1577,11 @@
 
     $("rpcTargetType").onchange = updateRpcMethodOptions;
     $("rpcMethod").onchange = updateRpcMethodSummary;
+    $("toggleConnectionEditorBtn").onclick = () => {
+      $("connectionEditor").open = !$("connectionEditor").open;
+    };
 
+    setupTabs();
     updateRpcMethodOptions();
     refreshBoth();
   </script>

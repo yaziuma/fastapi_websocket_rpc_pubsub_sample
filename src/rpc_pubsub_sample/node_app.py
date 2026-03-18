@@ -332,6 +332,8 @@ class NodeRuntime:
             result["rpc"] = await self.disable_rpc_registration()
         if target in ("pubsub", "all"):
             result["pubsub"] = await self.disable_pubsub_registration()
+        if not self.rpc_registration_enabled and not self.pubsub_registration_enabled:
+            self.connection_target = None
         return result
 
     async def enable_rpc_registration(self) -> dict[str, Any]:
