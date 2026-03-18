@@ -22,6 +22,7 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
+      min-height: 100vh;
       font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
       color: var(--text);
       background:
@@ -35,6 +36,25 @@
       padding: 24px;
       display: grid;
       gap: 18px;
+      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .stage {
+      min-height: 0;
+      overflow: auto;
+      padding-right: 6px;
+      scrollbar-gutter: stable;
+    }
+    .stage-top {
+      display: grid;
+      gap: 18px;
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+    .stage-bottom {
+      display: grid;
+      gap: 18px;
+      grid-template-rows: minmax(0, 1fr) auto;
     }
     .panel {
       background: var(--panel);
@@ -128,6 +148,7 @@
       grid-template-columns: minmax(0, 1fr) 240px minmax(0, 1fr);
       gap: 18px;
       align-items: stretch;
+      min-height: 0;
     }
     .node-pane {
       position: relative;
@@ -195,6 +216,7 @@
     .stack {
       display: grid;
       gap: 10px;
+      min-height: 0;
     }
     .widget {
       border: 1px solid var(--line);
@@ -438,6 +460,7 @@
       display: grid;
       gap: 14px;
       grid-template-columns: 1.1fr 1fr;
+      align-items: start;
     }
     .response-summary {
       min-height: 160px;
@@ -525,6 +548,15 @@
       to { opacity: 0; transform: translateX(24px); }
     }
     @media (max-width: 1180px) {
+      .page {
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+      }
+      .stage {
+        overflow: visible;
+        padding-right: 0;
+      }
       .network, .hero, .response-layout {
         grid-template-columns: 1fr;
       }
@@ -544,320 +576,324 @@
 </head>
 <body>
   <div class="page">
-    <section class="panel hero">
-      <div>
-        <h1>{{ node_name }} Learning Dashboard</h1>
-        <p>この画面は、WebSocket RPC と PubSub を「どこが繋がり、どちらへ流れ、何が相手に残るのか」で理解するための学習用 UI です。生の JSON を読むのではなく、接続パイプ、ジョブカード、アラートベル、イベントタイムラインで状態を追います。</p>
-        <div class="step-list">
-          <div class="step">
-            <div class="step-num">1</div>
-            <div>
-              <strong>まず接続する</strong>
-              <div class="tiny">相手ノードの URL を入れて RPC と PubSub を開通させます。中央の線が緑や青に変われば経路が使えます。</div>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <div>
-              <strong>次に機能を使う</strong>
-              <div class="tiny">ジョブ送信は相手サーバの仕事キューに入り、アラート送信は相手 callback 側の通知ベルに積まれます。</div>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">3</div>
-            <div>
-              <strong>最後に流れを見る</strong>
-              <div class="tiny">PubSub はイベントタイムラインに流れ、RPC は中央のパイプ上をパルスが往復します。</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="hero-status">
-        <div class="status-card">
-          <strong>現在の画面</strong>
-          <div class="tiny">Local: {{ local_base_url }}</div>
-          <div class="tiny"><a href="/docs">/docs</a> と <a href="/">/</a> も利用できます。</div>
-        </div>
-        <div class="status-card">
-          <strong>接続フェーズ</strong>
-          <div class="status-inline" id="phaseChips">
-            <span class="chip off">未取得</span>
-          </div>
-        </div>
-        <div class="status-card">
-          <strong>このサンプルで見せること</strong>
-          <div class="legend">
-            <span><i style="background: var(--rpc);"></i>RPC で相手サーバのジョブを操作</span>
-            <span><i style="background: var(--accent);"></i>callback RPC で相手へアラート通知</span>
-            <span><i style="background: var(--pubsub);"></i>PubSub でイベントを全体配信</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2>Step 1. 接続設定</h2>
-      <p class="helper">相手ノードの情報を入れて接続します。相互登録を使うと、相手側の登録 API まで自動で呼びます。</p>
-      <div class="form-grid">
+    <div class="stage stage-top">
+      <section class="panel hero">
         <div>
-          <label for="remoteName">Remote Name</label>
-          <input id="remoteName" value="{{ default_remote_name }}">
-        </div>
-        <div>
-          <label for="remoteBaseUrl">Remote Base URL</label>
-          <input id="remoteBaseUrl" value="{{ default_remote_base_url }}">
-        </div>
-        <div>
-          <label for="target">Target</label>
-          <select id="target">
-            <option value="all" selected>all</option>
-            <option value="rpc">rpc</option>
-            <option value="pubsub">pubsub</option>
-          </select>
-        </div>
-      </div>
-      <div class="action-row" style="margin-top: 14px;">
-        <button id="connectBtn">片方向で接続する</button>
-        <button id="connectMutualBtn" class="alt">相互接続する</button>
-        <button id="disconnectBtn" class="ghost">片方向を解除する</button>
-        <button id="disconnectMutualBtn" class="ghost">相互解除する</button>
-      </div>
-    </section>
-
-    <section class="network">
-      <section class="panel node-pane">
-        <div class="toast-stack" id="localToastStack"></div>
-        <div class="node-header">
-          <div class="node-title">
-            <h2 id="localNodeTitle">{{ node_name }}</h2>
-            <small id="localNodeUrl">{{ local_base_url }}</small>
-          </div>
-          <div class="bell" title="受信アラート">
-            🔔
-            <span class="badge" id="localAlertBadge">0</span>
-          </div>
-        </div>
-        <div class="metric-row">
-          <div class="metric">
-            <div class="tiny">RPC</div>
-            <strong id="localRpcMetric">-</strong>
-          </div>
-          <div class="metric">
-            <div class="tiny">PubSub</div>
-            <strong id="localPubsubMetric">-</strong>
-          </div>
-          <div class="metric">
-            <div class="tiny">Incoming Channel</div>
-            <strong id="localChannelMetric">-</strong>
-          </div>
-        </div>
-        <div class="widget">
-          <div class="widget-header">
-            <h3>Local Status</h3>
-            <div class="status-inline" id="localStatusChips"></div>
-          </div>
-          <div class="tiny" id="localConnectionText">未取得</div>
-        </div>
-        <div class="stack">
-          <div class="widget">
-            <div class="widget-header">
-              <h3>ジョブボード</h3>
-              <span class="tiny" id="localJobCount">0 件</span>
+          <h1>{{ node_name }} Learning Dashboard</h1>
+          <p>この画面は、WebSocket RPC と PubSub を「どこが繋がり、どちらへ流れ、何が相手に残るのか」で理解するための学習用 UI です。生の JSON を読むのではなく、接続パイプ、ジョブカード、アラートベル、イベントタイムラインで状態を追います。</p>
+          <div class="step-list">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div>
+                <strong>まず接続する</strong>
+                <div class="tiny">相手ノードの URL を入れて RPC と PubSub を開通させます。中央の線が緑や青に変われば経路が使えます。</div>
+              </div>
             </div>
-            <div class="card-list" id="localJobs"></div>
-          </div>
-          <div class="widget">
-            <div class="widget-header">
-              <h3>アラート履歴</h3>
-              <span class="tiny" id="localAlertCount">0 件</span>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div>
+                <strong>次に機能を使う</strong>
+                <div class="tiny">ジョブ送信は相手サーバの仕事キューに入り、アラート送信は相手 callback 側の通知ベルに積まれます。</div>
+              </div>
             </div>
-            <div class="card-list" id="localAlerts"></div>
-          </div>
-          <div class="widget">
-            <div class="widget-header">
-              <h3>PubSub タイムライン</h3>
-              <span class="tiny" id="localEventCount">0 件</span>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div>
+                <strong>最後に流れを見る</strong>
+                <div class="tiny">PubSub はイベントタイムラインに流れ、RPC は中央のパイプ上をパルスが往復します。</div>
+              </div>
             </div>
-            <div class="timeline" id="localEvents"></div>
+          </div>
+        </div>
+        <div class="hero-status">
+          <div class="status-card">
+            <strong>現在の画面</strong>
+            <div class="tiny">Local: {{ local_base_url }}</div>
+            <div class="tiny"><a href="/docs">/docs</a> と <a href="/">/</a> も利用できます。</div>
+          </div>
+          <div class="status-card">
+            <strong>接続フェーズ</strong>
+            <div class="status-inline" id="phaseChips">
+              <span class="chip off">未取得</span>
+            </div>
+          </div>
+          <div class="status-card">
+            <strong>このサンプルで見せること</strong>
+            <div class="legend">
+              <span><i style="background: var(--rpc);"></i>RPC で相手サーバのジョブを操作</span>
+              <span><i style="background: var(--accent);"></i>callback RPC で相手へアラート通知</span>
+              <span><i style="background: var(--pubsub);"></i>PubSub でイベントを全体配信</span>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="pipes">
-        <div class="pipe-card inactive" id="rpcPipe">
-          <h3>RPC パイプ</h3>
-          <div class="tiny">相手サーバの method を呼び、ジョブやノード情報を扱います。</div>
-          <div class="pipe-track">
-            <span class="pipe-pulse forward"></span>
-            <span class="pipe-pulse reverse"></span>
+      <section class="panel">
+        <h2>Step 1. 接続設定</h2>
+        <p class="helper">相手ノードの情報を入れて接続します。相互登録を使うと、相手側の登録 API まで自動で呼びます。</p>
+        <div class="form-grid">
+          <div>
+            <label for="remoteName">Remote Name</label>
+            <input id="remoteName" value="{{ default_remote_name }}">
           </div>
-          <div class="status-inline" id="rpcPipeStatus"></div>
-        </div>
-        <div class="pipe-card inactive" id="pubsubPipe">
-          <h3>PubSub パイプ</h3>
-          <div class="tiny">Publish したイベントを、購読しているノードのタイムラインへ流します。</div>
-          <div class="pipe-track">
-            <span class="pipe-pulse forward"></span>
-            <span class="pipe-pulse reverse"></span>
+          <div>
+            <label for="remoteBaseUrl">Remote Base URL</label>
+            <input id="remoteBaseUrl" value="{{ default_remote_base_url }}">
           </div>
-          <div class="status-inline" id="pubsubPipeStatus"></div>
-        </div>
-      </section>
-
-      <section class="panel node-pane">
-        <div class="toast-stack" id="remoteToastStack"></div>
-        <div class="node-header">
-          <div class="node-title">
-            <h2 id="remoteNodeTitle">Remote Node</h2>
-            <small id="remoteNodeUrl">接続先 URL を入力してください</small>
-          </div>
-          <div class="bell" title="受信アラート">
-            🔔
-            <span class="badge" id="remoteAlertBadge">0</span>
+          <div>
+            <label for="target">Target</label>
+            <select id="target">
+              <option value="all" selected>all</option>
+              <option value="rpc">rpc</option>
+              <option value="pubsub">pubsub</option>
+            </select>
           </div>
         </div>
-        <div class="metric-row">
-          <div class="metric">
-            <div class="tiny">RPC</div>
-            <strong id="remoteRpcMetric">-</strong>
-          </div>
-          <div class="metric">
-            <div class="tiny">PubSub</div>
-            <strong id="remotePubsubMetric">-</strong>
-          </div>
-          <div class="metric">
-            <div class="tiny">Incoming Channel</div>
-            <strong id="remoteChannelMetric">-</strong>
-          </div>
-        </div>
-        <div class="widget">
-          <div class="widget-header">
-            <h3>Remote Status</h3>
-            <div class="status-inline" id="remoteStatusChips"></div>
-          </div>
-          <div class="tiny" id="remoteConnectionText">未取得</div>
-        </div>
-        <div class="stack">
-          <div class="widget">
-            <div class="widget-header">
-              <h3>ジョブボード</h3>
-              <span class="tiny" id="remoteJobCount">0 件</span>
-            </div>
-            <div class="card-list" id="remoteJobs"></div>
-          </div>
-          <div class="widget">
-            <div class="widget-header">
-              <h3>アラート履歴</h3>
-              <span class="tiny" id="remoteAlertCount">0 件</span>
-            </div>
-            <div class="card-list" id="remoteAlerts"></div>
-          </div>
-          <div class="widget">
-            <div class="widget-header">
-              <h3>PubSub タイムライン</h3>
-              <span class="tiny" id="remoteEventCount">0 件</span>
-            </div>
-            <div class="timeline" id="remoteEvents"></div>
-          </div>
+        <div class="action-row" style="margin-top: 14px;">
+          <button id="connectBtn">片方向で接続する</button>
+          <button id="connectMutualBtn" class="alt">相互接続する</button>
+          <button id="disconnectBtn" class="ghost">片方向を解除する</button>
+          <button id="disconnectMutualBtn" class="ghost">相互解除する</button>
         </div>
       </section>
-    </section>
 
-    <section class="panel">
-      <div class="widget-header">
-        <div>
-          <h2>Step 2. 操作パネル</h2>
-          <div class="tiny">接続ができるまで操作はロックされます。接続後にジョブ、アラート、PubSub を試してください。</div>
-        </div>
-        <div class="status-inline" id="operationStatus"></div>
-      </div>
-      <div class="controls locked" id="controlsPanel">
-        <div class="card-grid">
-          <section class="control-card">
-            <h3>Job を相手サーバへ送る</h3>
-            <div class="tiny">`submit_job` は相手サーバのジョブボードにカードを追加します。</div>
-            <div>
-              <label for="jobMessage">Job 内容</label>
-              <input id="jobMessage" value="在庫同期ジョブを実行してください">
+      <section class="network">
+        <section class="panel node-pane">
+          <div class="toast-stack" id="localToastStack"></div>
+          <div class="node-header">
+            <div class="node-title">
+              <h2 id="localNodeTitle">{{ node_name }}</h2>
+              <small id="localNodeUrl">{{ local_base_url }}</small>
             </div>
-            <div class="action-row">
-              <button id="submitJobBtn">Job を送る</button>
-              <button id="listJobsBtn" class="ghost">相手 Job 一覧を取得</button>
-            </div>
-          </section>
-          <section class="control-card">
-            <h3>Alert を相手 callback へ送る</h3>
-            <div class="tiny">`push_alert` は相手 callback 側のベルとアラート履歴を増やします。</div>
-            <div>
-              <label for="alertMessage">Alert 内容</label>
-              <input id="alertMessage" value="ジョブ投入を受け付けました">
-            </div>
-            <div class="action-row">
-              <button id="pushAlertBtn" class="alt">Alert を送る</button>
-              <button id="listAlertsBtn" class="ghost">相手 Alert 一覧を取得</button>
-            </div>
-          </section>
-          <section class="control-card">
-            <h3>PubSub Event を配信する</h3>
-            <div class="tiny">Publish したイベントは購読中ノードのタイムラインに流れます。</div>
-            <div>
-              <label for="topic">Topic</label>
-              <input id="topic" value="events">
-            </div>
-            <div>
-              <label for="pubsubMessage">Event 内容</label>
-              <input id="pubsubMessage" value="配送完了イベントを配信しました">
-            </div>
-            <div class="action-row">
-              <button id="publishBtn" class="sub">Publish する</button>
-              <button id="refreshStateBtn" class="ghost">状態を再取得</button>
-            </div>
-          </section>
-        </div>
-
-        <section class="control-card">
-          <h3>RPC Method Explorer</h3>
-          <div class="tiny">公開 method を切り替えると、その method に対応した個別 HTTP エンドポイントを呼びます。汎用 `invoke` は使いません。</div>
-          <div class="form-grid">
-            <div>
-              <label for="rpcTargetType">RPC 公開種別</label>
-              <select id="rpcTargetType">
-                <option value="server" selected>server methods</option>
-                <option value="client">client methods</option>
-              </select>
-            </div>
-            <div>
-              <label for="rpcMethod">RPC Method</label>
-              <select id="rpcMethod"></select>
-            </div>
-            <div>
-              <label for="rpcMessage">Method 用メッセージ</label>
-              <input id="rpcMessage" value="メソッド探索用メッセージ">
+            <div class="bell" title="受信アラート">
+              🔔
+              <span class="badge" id="localAlertBadge">0</span>
             </div>
           </div>
-          <div class="tiny" id="rpcMethodSummary">ここに選択中 method の説明を表示します。</div>
-          <div class="action-row">
-            <button id="rpcInvokeBtn">選択した method を実行</button>
-            <button id="rpcMethodsBtn" class="ghost">公開 method 一覧を表示</button>
+          <div class="metric-row">
+            <div class="metric">
+              <div class="tiny">RPC</div>
+              <strong id="localRpcMetric">-</strong>
+            </div>
+            <div class="metric">
+              <div class="tiny">PubSub</div>
+              <strong id="localPubsubMetric">-</strong>
+            </div>
+            <div class="metric">
+              <div class="tiny">Incoming Channel</div>
+              <strong id="localChannelMetric">-</strong>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-header">
+              <h3>Local Status</h3>
+              <div class="status-inline" id="localStatusChips"></div>
+            </div>
+            <div class="tiny" id="localConnectionText">未取得</div>
+          </div>
+          <div class="stack">
+            <div class="widget">
+              <div class="widget-header">
+                <h3>ジョブボード</h3>
+                <span class="tiny" id="localJobCount">0 件</span>
+              </div>
+              <div class="card-list" id="localJobs"></div>
+            </div>
+            <div class="widget">
+              <div class="widget-header">
+                <h3>アラート履歴</h3>
+                <span class="tiny" id="localAlertCount">0 件</span>
+              </div>
+              <div class="card-list" id="localAlerts"></div>
+            </div>
+            <div class="widget">
+              <div class="widget-header">
+                <h3>PubSub タイムライン</h3>
+                <span class="tiny" id="localEventCount">0 件</span>
+              </div>
+              <div class="timeline" id="localEvents"></div>
+            </div>
           </div>
         </section>
-      </div>
-    </section>
 
-    <section class="panel response-layout">
-      <div class="response-summary">
-        <div class="response-title">
-          <h2>最新の操作結果</h2>
-          <button id="copyResultBtn" class="ghost">レスポンスをコピー</button>
+        <section class="pipes">
+          <div class="pipe-card inactive" id="rpcPipe">
+            <h3>RPC パイプ</h3>
+            <div class="tiny">相手サーバの method を呼び、ジョブやノード情報を扱います。</div>
+            <div class="pipe-track">
+              <span class="pipe-pulse forward"></span>
+              <span class="pipe-pulse reverse"></span>
+            </div>
+            <div class="status-inline" id="rpcPipeStatus"></div>
+          </div>
+          <div class="pipe-card inactive" id="pubsubPipe">
+            <h3>PubSub パイプ</h3>
+            <div class="tiny">Publish したイベントを、購読しているノードのタイムラインへ流します。</div>
+            <div class="pipe-track">
+              <span class="pipe-pulse forward"></span>
+              <span class="pipe-pulse reverse"></span>
+            </div>
+            <div class="status-inline" id="pubsubPipeStatus"></div>
+          </div>
+        </section>
+
+        <section class="panel node-pane">
+          <div class="toast-stack" id="remoteToastStack"></div>
+          <div class="node-header">
+            <div class="node-title">
+              <h2 id="remoteNodeTitle">Remote Node</h2>
+              <small id="remoteNodeUrl">接続先 URL を入力してください</small>
+            </div>
+            <div class="bell" title="受信アラート">
+              🔔
+              <span class="badge" id="remoteAlertBadge">0</span>
+            </div>
+          </div>
+          <div class="metric-row">
+            <div class="metric">
+              <div class="tiny">RPC</div>
+              <strong id="remoteRpcMetric">-</strong>
+            </div>
+            <div class="metric">
+              <div class="tiny">PubSub</div>
+              <strong id="remotePubsubMetric">-</strong>
+            </div>
+            <div class="metric">
+              <div class="tiny">Incoming Channel</div>
+              <strong id="remoteChannelMetric">-</strong>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-header">
+              <h3>Remote Status</h3>
+              <div class="status-inline" id="remoteStatusChips"></div>
+            </div>
+            <div class="tiny" id="remoteConnectionText">未取得</div>
+          </div>
+          <div class="stack">
+            <div class="widget">
+              <div class="widget-header">
+                <h3>ジョブボード</h3>
+                <span class="tiny" id="remoteJobCount">0 件</span>
+              </div>
+              <div class="card-list" id="remoteJobs"></div>
+            </div>
+            <div class="widget">
+              <div class="widget-header">
+                <h3>アラート履歴</h3>
+                <span class="tiny" id="remoteAlertCount">0 件</span>
+              </div>
+              <div class="card-list" id="remoteAlerts"></div>
+            </div>
+            <div class="widget">
+              <div class="widget-header">
+                <h3>PubSub タイムライン</h3>
+                <span class="tiny" id="remoteEventCount">0 件</span>
+              </div>
+              <div class="timeline" id="remoteEvents"></div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <div class="stage stage-bottom">
+      <section class="panel">
+        <div class="widget-header">
+          <div>
+            <h2>Step 2. 操作パネル</h2>
+            <div class="tiny">接続ができるまで操作はロックされます。接続後にジョブ、アラート、PubSub を試してください。</div>
+          </div>
+          <div class="status-inline" id="operationStatus"></div>
         </div>
-        <div id="resultHeadline">まだ操作していません。</div>
-        <div class="tiny" id="resultMeta">ここには「何を実行して、どこに反映されたか」を短く表示します。</div>
-      </div>
-      <details>
-        <summary>JSON レスポンス詳細</summary>
-        <pre id="resultBox">ここに詳細 JSON を表示します。</pre>
-      </details>
-    </section>
+        <div class="controls locked" id="controlsPanel">
+          <div class="card-grid">
+            <section class="control-card">
+              <h3>Job を相手サーバへ送る</h3>
+              <div class="tiny">`submit_job` は相手サーバのジョブボードにカードを追加します。</div>
+              <div>
+                <label for="jobMessage">Job 内容</label>
+                <input id="jobMessage" value="在庫同期ジョブを実行してください">
+              </div>
+              <div class="action-row">
+                <button id="submitJobBtn">Job を送る</button>
+                <button id="listJobsBtn" class="ghost">相手 Job 一覧を取得</button>
+              </div>
+            </section>
+            <section class="control-card">
+              <h3>Alert を相手 callback へ送る</h3>
+              <div class="tiny">`push_alert` は相手 callback 側のベルとアラート履歴を増やします。</div>
+              <div>
+                <label for="alertMessage">Alert 内容</label>
+                <input id="alertMessage" value="ジョブ投入を受け付けました">
+              </div>
+              <div class="action-row">
+                <button id="pushAlertBtn" class="alt">Alert を送る</button>
+                <button id="listAlertsBtn" class="ghost">相手 Alert 一覧を取得</button>
+              </div>
+            </section>
+            <section class="control-card">
+              <h3>PubSub Event を配信する</h3>
+              <div class="tiny">Publish したイベントは購読中ノードのタイムラインに流れます。</div>
+              <div>
+                <label for="topic">Topic</label>
+                <input id="topic" value="events">
+              </div>
+              <div>
+                <label for="pubsubMessage">Event 内容</label>
+                <input id="pubsubMessage" value="配送完了イベントを配信しました">
+              </div>
+              <div class="action-row">
+                <button id="publishBtn" class="sub">Publish する</button>
+                <button id="refreshStateBtn" class="ghost">状態を再取得</button>
+              </div>
+            </section>
+          </div>
+
+          <section class="control-card">
+            <h3>RPC Method Explorer</h3>
+            <div class="tiny">公開 method を切り替えると、その method に対応した個別 HTTP エンドポイントを呼びます。汎用 `invoke` は使いません。</div>
+            <div class="form-grid">
+              <div>
+                <label for="rpcTargetType">RPC 公開種別</label>
+                <select id="rpcTargetType">
+                  <option value="server" selected>server methods</option>
+                  <option value="client">client methods</option>
+                </select>
+              </div>
+              <div>
+                <label for="rpcMethod">RPC Method</label>
+                <select id="rpcMethod"></select>
+              </div>
+              <div>
+                <label for="rpcMessage">Method 用メッセージ</label>
+                <input id="rpcMessage" value="メソッド探索用メッセージ">
+              </div>
+            </div>
+            <div class="tiny" id="rpcMethodSummary">ここに選択中 method の説明を表示します。</div>
+            <div class="action-row">
+              <button id="rpcInvokeBtn">選択した method を実行</button>
+              <button id="rpcMethodsBtn" class="ghost">公開 method 一覧を表示</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="panel response-layout">
+        <div class="response-summary">
+          <div class="response-title">
+            <h2>最新の操作結果</h2>
+            <button id="copyResultBtn" class="ghost">レスポンスをコピー</button>
+          </div>
+          <div id="resultHeadline">まだ操作していません。</div>
+          <div class="tiny" id="resultMeta">ここには「何を実行して、どこに反映されたか」を短く表示します。</div>
+        </div>
+        <details>
+          <summary>JSON レスポンス詳細</summary>
+          <pre id="resultBox">ここに詳細 JSON を表示します。</pre>
+        </details>
+      </section>
+    </div>
   </div>
 
   <script>
