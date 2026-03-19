@@ -1,13 +1,90 @@
 # fastapi websocket RPC / PubSub sample
 
-`tmp.md` の内容をベースに、FastAPI を 2 つ立てて相互接続するサンプルです。Python ファイルは `src/rpc_pubsub_sample/` 配下にあります。操作は FastAPI の `/docs` または `/ui` から行えます。
+2 つの FastAPI ノードを立ち上げ、相互に WebSocket RPC と PubSub を接続して動きを確認するためのサンプルです。
 
-- `src/rpc_pubsub_sample/server_a.py`: `127.0.0.1:60001`
-- `src/rpc_pubsub_sample/server_b.py`: `127.0.0.1:60002`
-- 各アプリは自分の WebSocket サーバを公開し、登録 API を叩くとユーザが指定した接続先へ RPC / PubSub クライアントとして接続します
-- WebSocket 接続時は `?token=...` で簡易認証します
+- `server-a`: `http://127.0.0.1:60001`
+- `server-b`: `http://127.0.0.1:60002`
+- 各ノードは自分の WebSocket エンドポイントを公開します
+- 登録 API を呼ぶと、相手ノードへ RPC / PubSub クライアントとして接続します
+- WebSocket 接続時は `?token=...` による簡易認証を使います
+- 操作は Swagger UI の `/docs` と可視化 UI の `/ui` から行えます
+
+## これは何か
+
+このプロジェクトは、以下の 2 つの通信パターンを 1 つのサンプルで比較しながら確認するためのものです。
+
+- RPC: 特定の相手に対してメソッドを呼び出す 1 対 1 の通信
+- PubSub: topic にイベントを publish し、購読中ノードへ配信する 1 対 N の通信
+
+具体的には次の流れを試せます。
+
+1. `server-a` と `server-b` を起動する
+2. 片方向または相互登録で RPC / PubSub 接続を張る
+3. RPC でジョブ登録や状態取得を行う
+4. callback RPC でアラートを送る
+5. PubSub でイベントを publish し、相手側の受信を確認する
+
+## 構成
+
+```text
+.
+├── config.toml
+├── start_servers.sh
+├── stop_servers.sh
+└── src/rpc_pubsub_sample/
+    ├── app_config.py
+    ├── node_app.py
+    ├── server_a.py
+    ├── server_b.py
+    └── templates/dashboard.html
+```
+
+主要ファイル:
+
+- `src/rpc_pubsub_sample/node_app.py`
+  - アプリ本体
+  - 接続管理
+  - RPC / PubSub エンドポイント
+  - UI 用 API
+- `src/rpc_pubsub_sample/server_a.py`
+  - `server-a` のエントリポイント
+- `src/rpc_pubsub_sample/server_b.py`
+  - `server-b` のエントリポイント
+- `src/rpc_pubsub_sample/templates/dashboard.html`
+  - `/ui` で表示するダッシュボード
+- `config.toml`
+  - ポート、ノード名、認証トークンなどの設定
+
+## 使用ライブラリ
+
+このサンプルは、以下の 2 つのライブラリを中心に構築しています。
+
+### `fastapi-websocket-rpc`
+
+FastAPI 上で双方向 RPC を実現するライブラリです。サーバとクライアントの双方がメソッドを公開でき、`.other.method()` 形式で相手側のメソッドを呼べます。このサンプルでは、ノード情報取得、ジョブ登録、アラート通知などの RPC に使っています。
+
+- GitHub: <https://github.com/permitio/fastapi_websocket_rpc>
+- PyPI: <https://pypi.org/project/fastapi-websocket-rpc/>
+
+### `fastapi-websocket-pubsub`
+
+FastAPI 上で WebSocket ベースの PubSub を実現するライブラリです。topic 単位でイベントを publish / subscribe でき、このサンプルではノード間のイベント共有に使っています。
+
+- GitHub: <https://github.com/permitio/fastapi_websocket_pubsub>
+- PyPI: <https://pypi.org/project/fastapi-websocket-pubsub/>
+
+### 謝意
+
+このサンプルは `fastapi-websocket-rpc` と `fastapi-websocket-pubsub` の機能を組み合わせて成り立っています。メンテナとコントリビュータのみなさんに感謝します。
 
 ## セットアップ
+
+前提:
+
+- Python `>= 3.14`
+- `uv`
+
+依存関係をインストールします。
 
 ```bash
 uv sync
@@ -15,19 +92,36 @@ uv sync
 
 ## 設定
 
-ポート番号や host は [`config.toml`](/home/yuichi/projects/fastapi_websocket_rpc_pubsub_sample/config.toml) で指定します。
+設定ファイルは `config.toml` です。
 
 ```toml
+[fastapi]
+reload = true
+
 [server_a]
+name = "server-a"
 host = "127.0.0.1"
 port = 60001
+outbound_token = "token-server-a"
+
+[server_a.accepted_tokens]
+token-server-b = "server-b"
 
 [server_b]
+name = "server-b"
 host = "127.0.0.1"
 port = 60002
+outbound_token = "token-server-b"
+
+[server_b.accepted_tokens]
+token-server-a = "server-a"
 ```
 
-`src/rpc_pubsub_sample/server_a.py` / `src/rpc_pubsub_sample/server_b.py` と `start_servers.sh` は同じ設定ファイルを参照します。
+ポイント:
+
+- `outbound_token`: 自ノードが相手へ接続するときに使うトークン
+- `accepted_tokens`: 相手から接続されるときに受け入れるトークン一覧
+- `reload = true`: `start_servers.sh` で `uvicorn --reload` を有効化
 
 ## 起動
 
@@ -43,44 +137,39 @@ port = 60002
 ./stop_servers.sh
 ```
 
-`start_servers.sh` は各サーバを独立したプロセスグループで起動し、`stop_servers.sh` はそのグループ単位で停止します。
-ログは Python の `logging` で [`logs/server-a.log`](/home/yuichi/projects/fastapi_websocket_rpc_pubsub_sample/logs/server-a.log) と [`logs/server-b.log`](/home/yuichi/projects/fastapi_websocket_rpc_pubsub_sample/logs/server-b.log) に出力されます。`uvicorn` のログも同じファイルに追記されます。
+`start_servers.sh` は 2 つの uvicorn を独立したプロセスグループで起動し、`stop_servers.sh` はそれらをまとめて停止します。
 
-個別に起動する場合:
+ログ出力先:
 
-ターミナル 1:
+- `logs/server-a.log`
+- `logs/server-b.log`
+
+個別起動する場合:
 
 ```bash
 PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_a:app --host 127.0.0.1 --port 60001
 ```
 
-ターミナル 2:
-
 ```bash
 PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 127.0.0.1 --port 60002
 ```
 
-起動しただけでは peer への登録は行いません。ユーザが登録 API を叩くと、RPC / PubSub の接続を開始します。
+## 使い方
 
-## `/docs` からの操作手順
-
-両サーバ起動後、以下をブラウザで開いて操作します。
+### 1. 画面を開く
 
 - `http://127.0.0.1:60001/docs`
 - `http://127.0.0.1:60002/docs`
-
-簡易 UI:
-
 - `http://127.0.0.1:60001/ui`
 - `http://127.0.0.1:60002/ui`
 
-`config.toml` のポートを変更している場合は、その値に読み替えてください。
+### 2. 接続を開始する
 
-### 1. 登録開始
+片方向登録:
 
-まず両サーバの `/docs` で `POST /registration/connect` を開き、接続先を指定して実行します。
+`server-a` から `server-b` へ接続する例:
 
-```bash
+```json
 {
   "target": "all",
   "remote_name": "server-b",
@@ -89,13 +178,9 @@ PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 12
 }
 ```
 
-逆方向は `remote_name` と URL を入れ替えて実行します。認証トークンは各サーバの `config.toml` にある `outbound_token` を自動利用します。必要に応じて `rpc` または `pubsub` だけ登録することもできます。
+相互登録:
 
-同じ内容の登録を実行中に再度 `POST /registration/connect` すると `409 Conflict` を返します。接続先を変えたい場合も、先に `POST /registration/disconnect` を実行してください。自分自身の `/ws/rpc` や `/ws/pubsub` を接続先に指定した場合は `422` を返します。
-
-片側操作だけで双方を登録したい場合は、`POST /registration/connect-mutual` を使います。
-
-```bash
+```json
 {
   "target": "all",
   "remote_name": "server-b",
@@ -103,88 +188,149 @@ PYTHONPATH=src uv run python -m uvicorn rpc_pubsub_sample.server_b:app --host 12
 }
 ```
 
-これを `server-a` 側の `/docs` から実行すると、`server-a -> server-b` の登録と、`server-b -> server-a` の登録を続けて行います。
+相互登録を `server-a` 側で実行すると、`server-a -> server-b` と `server-b -> server-a` の両方をまとめて登録します。
 
-### 2. 状態確認
+### 3. 状態を確認する
 
-`GET /health` を実行し、`rpc_registration_enabled` / `pubsub_registration_enabled` と
-`rpc_connected` / `pubsub_connected` が `true` になっていることを確認します。
+`GET /health` で次を確認できます。
 
-### 3. 相手サーバの RPC 呼び出し
+- `rpc_registration_enabled`
+- `pubsub_registration_enabled`
+- `rpc_connected`
+- `pubsub_connected`
+- `incoming_rpc_channels`
+- `recent_pubsub_events`
 
-相手サーバ側では次の method を公開しています。
+### 4. RPC を試す
 
-- `get_node_info`: ノード名、接続状態、保存件数を取得
-- `submit_job`: 相手サーバへジョブを登録
-- `list_jobs`: 相手サーバに登録されたジョブ一覧を取得
+相手サーバ側に対して呼ぶ RPC:
 
-### 4. 相手コールバックの RPC 呼び出し
+- `POST /rpc/server/get-node-info`
+- `POST /rpc/server/submit-job`
+- `POST /rpc/server/list-jobs`
 
-相手 callback 側では次の method を公開しています。
+`submit-job` の例:
 
-- `push_alert`: 相手 callback 側へアラートを追加
-- `list_alerts`: 相手 callback 側に届いたアラート一覧を取得
-- `client_status`: 相手 callback 側の詳細状態を取得
-
-公開中の sample method 一覧は `GET /rpc/methods` で確認できます。`/ui` ではこの一覧をもとに、公開種別と method を選んで対応する個別エンドポイントを呼びます。
-
-### 5. PubSub 配信
-
-`POST /pubsub/publish` で次のように送信します。
-
-```bash
-{"topic":"events","message":"event from server-a"}
+```json
+{
+  "job_type": "配送手配",
+  "priority": "high",
+  "parameters": {
+    "order_id": "9999",
+    "warehouse": "tokyo-1",
+    "force": true
+  }
+}
 ```
 
-その後、peer 側の `/docs` で `GET /pubsub/events` を実行して受信結果を確認します。
+相手 callback 側に対して呼ぶ RPC:
 
-### 6. 登録解除
+- `POST /rpc/client/push-alert`
+- `POST /rpc/client/list-alerts`
+- `POST /rpc/client/status`
 
-`POST /registration/disconnect` を `{"target":"all"}` で実行すると、登録ループを止められます。
+`push-alert` の例:
 
-片側操作だけで双方を解除したい場合は、`POST /registration/disconnect-mutual` を使います。
+```json
+{
+  "severity": "warning",
+  "message": "注文9999の在庫が足りません。至急確認してください。"
+}
+```
 
-```bash
+### 5. PubSub を試す
+
+`POST /pubsub/publish` の例:
+
+```json
+{
+  "topic": "order.status",
+  "event_type": "updated",
+  "payload": {
+    "order_id": "9999",
+    "status": "決済完了",
+    "customer_id": "C-1201"
+  }
+}
+```
+
+受信結果は `GET /pubsub/events` または `/ui` で確認できます。
+
+### 6. 接続を解除する
+
+片方向解除:
+
+```json
+{
+  "target": "all"
+}
+```
+
+相互解除:
+
+```json
 {
   "target": "all",
   "remote_base_url": "http://127.0.0.1:60002"
 }
 ```
 
-## `/ui` について
+## `/ui` で見られるもの
 
-`/ui` は API テスターではなく、RPC / PubSub の仕組みを学ぶための可視化ダッシュボードです。
+`/ui` は API テスターではなく、通信の流れを掴むためのダッシュボードです。
 
-- 左右 2 ペインで Local / Remote ノードを表示
-- 中央に RPC パイプと PubSub パイプを描画し、開通時は色が変わる
-- `submit_job` の結果をジョブボードにカードとして表示
-- `push_alert` の結果をベルバッジとアラート履歴、トーストで表示
-- PubSub イベントをタイムライン表示
-- 未接続時は操作パネルをロックし、接続後に解放
-- `RPC Method Explorer` では公開 method をセレクトボックスで選び、対応する個別エンドポイントを呼ぶ
-- 最新レスポンスは要約と JSON 詳細の両方で確認でき、コピーボタンも利用可能
+- Local / Remote ノードの状態
+- RPC パイプの開通状況
+- PubSub パイプの開通状況
+- Job 一覧
+- Alert 一覧
+- PubSub イベントのタイムライン
+- 直近レスポンスの要約と JSON 詳細
 
-## `curl` で試す場合
+## 主なエンドポイント
 
-`/docs` を使わずに確認したい場合は、README の各 JSON 例をそのまま `curl` で送っても構いません。
+### Meta / UI
 
-## エンドポイント
+- `GET /`
+- `GET /health`
+- `GET /ui`
+- `GET /ui/state`
+- `POST /ui/remote-snapshot`
 
-- `GET /health`: RPC / PubSub の接続状態と最近の受信イベント
-- `POST /registration/connect`: `rpc` / `pubsub` / `all` の登録開始
-  接続先はリクエストボディで指定する
-- `POST /registration/connect-mutual`: 相手ノードと相互登録する
-- `POST /registration/disconnect`: `rpc` / `pubsub` / `all` の登録解除
-- `POST /registration/disconnect-mutual`: 相手ノードと相互解除する
-- `GET /ui`: 1画面で操作できる簡易 UI
-- `GET /ui/state`: UI 描画用のローカル状態をまとめて返す
-- `POST /ui/remote-snapshot`: UI 用に相手ノードの状態を取得する
-- `GET /rpc/methods`: このサンプルで公開している RPC method 一覧を返す
-- `POST /rpc/server/get-node-info`: peer 側の `get_node_info` を呼ぶ
-- `POST /rpc/server/submit-job`: peer 側の `submit_job` を呼ぶ
-- `POST /rpc/server/list-jobs`: peer 側の `list_jobs` を呼ぶ
-- `POST /rpc/client/push-alert`: peer 側の `push_alert` を呼ぶ
-- `POST /rpc/client/list-alerts`: peer 側の `list_alerts` を呼ぶ
-- `POST /rpc/client/status`: peer 側の `client_status` を呼ぶ
-- `POST /pubsub/publish`: 自サーバの PubSub endpoint から publish する
-- `GET /pubsub/events`: 受信した PubSub イベント一覧
+### Registration
+
+- `POST /registration/connect`
+- `POST /registration/connect-mutual`
+- `POST /registration/disconnect`
+- `POST /registration/disconnect-mutual`
+
+### RPC
+
+- `GET /rpc/methods`
+- `POST /rpc/server/get-node-info`
+- `POST /rpc/server/submit-job`
+- `POST /rpc/server/list-jobs`
+- `POST /rpc/client/push-alert`
+- `POST /rpc/client/list-alerts`
+- `POST /rpc/client/status`
+
+### PubSub
+
+- `POST /pubsub/publish`
+- `GET /pubsub/events`
+
+### WebSocket
+
+- `GET /ws/rpc?token=...`
+- `GET /ws/pubsub?token=...`
+
+## 開発メモ
+
+- 起動しただけでは peer への接続は始まりません
+- 接続先を変更したい場合は、先に切断してください
+- 自分自身の `/ws/rpc` や `/ws/pubsub` を接続先に指定すると `422` を返します
+- 同じ登録内容を再実行すると `409 Conflict` を返します
+
+## ライセンス
+
+このリポジトリのライセンスが必要なら、別途 `LICENSE` を追加してください。
